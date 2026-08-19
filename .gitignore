@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Data (regenerable via src/prepare_dataset.py)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Models (regenerable via src/train.py)
+models/*.pkl
+!models/.gitkeep
+
+# OS / editors
+.DS_Store
+.vscode/
+*.log
