@@ -8,7 +8,7 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 
 - [x] Etapa 1.1 — Dataset e preparação
 - [x] Etapa 1.2 — Modelo baseline
-- [ ] Etapa 1.3 — DAG Airflow
+- [x] Etapa 1.3 — DAG Airflow
 
 ## Estrutura do projeto
 
@@ -29,8 +29,14 @@ models/
 docs/
   dataset.md               # fonte, formato e mapeamento de classes
   dataset_distribution.md  # relatório gerado automaticamente (Etapa 1.1)
-  model_metrics.md         # métricas do modelo baseline (Etapa 1.2)
-dags/             # DAGs do Airflow
+  model_metrics.md         # métricas do modelo baseline (Etapa 1.2 / atualizado a cada run da DAG)
+  airflow_run_evidence.png # print de uma execução bem-sucedida da DAG (Etapa 1.3)
+dags/
+  train_pipeline.py        # DAG de retreino: carregamento -> treino -> salvamento
+docker-compose.yml    # ambiente local do Airflow (Postgres + webserver + scheduler)
+Dockerfile.airflow    # imagem do Airflow usada pelo docker-compose (não é a imagem da API)
+requirements.txt      # dependências de runtime (também instaladas na imagem do Airflow)
+requirements-dev.txt  # requirements.txt + pytest (uso local)
 ```
 
 ## Instalação
@@ -44,8 +50,12 @@ python -m venv .venv
 # Linux/Mac
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
+
+`requirements.txt` contém só as dependências de runtime (usadas também
+dentro da imagem do Airflow); `requirements-dev.txt` adiciona o `pytest`
+para rodar os testes localmente.
 
 ## Rodando os testes
 
@@ -96,6 +106,77 @@ sobre as amostras de benchmark:
 
 ```bash
 pytest tests/test_model_loading.py -v
+```
+
+## DAG de retreino no Airflow (Etapa 1.3)
+
+Pré-requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+instalado e em execução, e o dataset já processado (rode a Etapa 1.1 antes:
+`python -m src.prepare_dataset`).
+
+A DAG `train_pipeline` simula um fluxo de retreino agendado (`@weekly`) com
+3 tasks, na ordem obrigatória `carregamento/validação dos dados → treino →
+salvamento do modelo`, reutilizando diretamente as funções de
+`src/prepare_dataset.py` e `src/train.py` (nenhuma lógica é duplicada). A
+cada execução, o modelo treinado é promovido para `models/model.pkl` e uma
+cópia versionada por timestamp é salva em `models/history/`.
+
+### Subir o ambiente
+
+```bash
+docker compose up -d --build
+```
+
+Isso builda a imagem `Dockerfile.airflow` (Airflow + dependências do
+projeto), sobe o Postgres (metastore do Airflow) e inicializa o banco e o
+usuário administrador (`admin` / `admin`).
+
+### Acessar a interface
+
+Abra [http://localhost:8080](http://localhost:8080) e faça login com
+`admin` / `admin`.
+
+### Disparar a DAG
+
+Pela interface: localize `train_pipeline` na lista de DAGs, ative o toggle
+(unpause) e clique em **Trigger DAG** (▶). Ou via linha de comando:
+
+```bash
+docker compose exec airflow-webserver airflow dags trigger train_pipeline
+```
+
+Acompanhe o progresso na visão **Graph** ou **Grid** da DAG. Os logs de
+cada task ficam disponíveis na interface e também em `airflow_logs/`
+(bind mount, não versionado).
+
+Evidência de uma execução bem-sucedida (3/3 tasks verdes, na ordem
+`load_and_validate_data → train_model → save_model`):
+[docs/airflow_run_evidence.png](docs/airflow_run_evidence.png).
+
+### Nota: consistência de versões entre ambientes
+
+O `apache-airflow` traz `dill` como dependência transitiva, e isso faz o
+`pickle` do Python usar handlers do `dill` para alguns objetos durante o
+`joblib.dump` — ou seja, um `model.pkl` treinado **dentro do container**
+Airflow só recarrega em outro ambiente se esse ambiente também tiver
+`dill` instalado. Por isso `dill` está declarado em `requirements.txt`
+(runtime, não só dev) e o `scikit-learn` está fixado em `==1.5.1` (tanto
+localmente quanto na imagem do Airflow), evitando o
+`InconsistentVersionWarning` do scikit-learn ao desserializar um modelo
+treinado em outra versão. Qualquer ambiente que for carregar
+`models/model.pkl` (ex.: a API da Etapa 2) deve instalar as mesmas
+versões de `requirements.txt`.
+
+### Encerrar o ambiente
+
+```bash
+docker compose down
+```
+
+Para remover também o volume do Postgres (reset completo do metastore):
+
+```bash
+docker compose down -v
 ```
 
 ## Licença

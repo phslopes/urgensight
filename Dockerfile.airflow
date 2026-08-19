@@ -1,0 +1,14 @@
+# Imagem do Airflow usada pelo webserver/scheduler (docker-compose.yml).
+# Nao confundir com o Dockerfile da API (Etapa 2, Integrante 2) -- por isso
+# o nome dedicado Dockerfile.airflow.
+FROM apache/airflow:2.9.3-python3.11
+
+COPY requirements.txt /requirements.txt
+
+# Instala as dependencias do projeto (pandas, scikit-learn, etc.) usando as
+# constraints oficiais do Airflow para essa versao, evitando que alguma
+# versao de dependencia transitiva quebre o proprio Airflow.
+RUN pip install --no-cache-dir -r /requirements.txt \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.11.txt"
+
+ENV PYTHONPATH="/opt/airflow/project:${PYTHONPATH}"

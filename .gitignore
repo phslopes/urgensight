@@ -12,9 +12,13 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
-# Models (regenerable via src/train.py)
+# Models (regenerable via src/train.py or the Airflow DAG)
 models/*.pkl
+models/history/
 !models/.gitkeep
+
+# Airflow (docker-compose.yml)
+airflow_logs/
 
 # OS / editors
 .DS_Store
