@@ -1,0 +1,46 @@
+# Reduz o contexto de build enviado ao daemon Docker.
+# O Dockerfile copia apenas src/, requirements.txt e models/model.pkl,
+# mas sem .dockerignore o client envia tudo (incluindo .venv/, data/ e
+# logs), tornando o build lento e instavel.
+
+# VCS
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Data (regeneravel via src/prepare_dataset.py -- nao vai para a imagem)
+data/raw/*
+data/processed/*
+
+# Models extras e historico (a imagem congela apenas models/model.pkl)
+models/history/
+
+# Airflow (docker-compose.yml)
+airflow_logs/
+Dockerfile.airflow
+docker-compose.yml
+
+# Tests e docs (nao necessarios para a imagem de producao)
+tests/
+docs/api_contract.md
+docs/baseline_latency.md
+docs/dataset.md
+docs/dataset_distribution.md
+docs/model_metrics.md
+docs/airflow_run_evidence.png
+README.md
+MLET - Tech Challenge Fase 3.pdf
+instructions.txt
+
+# OS / editors
+.DS_Store
+.vscode/
+*.log
