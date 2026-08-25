@@ -179,6 +179,204 @@ Para remover também o volume do Postgres (reset completo do metastore):
 docker compose down -v
 ```
 
+## API de inferência (Etapa 2)
+
+A API FastAPI serve o pipeline serializado em `models/model.pkl` via
+`POST /predict`. O modelo é carregado em memória uma única vez no startup
+(lifespan) e reutilizado por todas as requisições. Se o modelo estiver
+ausente ou inválido, a API inicia mesmo assim e responde `503 Service
+Unavailable` em `/predict` e `/health` até que um modelo válido esteja
+presente. Contrato formal: [docs/api_contract.md](docs/api_contract.md).
+
+### Rodando localmente (sem Docker)
+
+```bash
+uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs).
+
+### Build da imagem Docker
+
+O `Dockerfile` da API executa os seguintes passos:
+
+1. Parte de `python:3.12-slim` (mesmo major/minor usado no ambiente de dev,
+   garantindo compatibilidade com o pickle do modelo).
+2. Instala `requirements.txt` em uma camada própria (otimiza cache de build).
+3. Copia `src/` e o artefato `models/model.pkl`.
+4. Executa como usuário não-root (`appuser`).
+5. Expõe a porta `8000` e sobe o Uvicorn em `src.app:app`.
+6. Registra um `HEALTHCHECK` que falha quando o modelo não está carregado.
+
+```bash
+docker build -t urgensight-api .
+```
+
+### Subir o container
+
+```bash
+docker run -d -p 8000:8000 --name urgensight-api urgensight-api
+```
+
+Aguardar o health check ficar `healthy`:
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' urgensight-api
+```
+
+### Validar os endpoints
+
+```bash
+# Health check (200 quando o modelo esta carregado)
+curl -s http://localhost:8000/health
+# {"status":"ok","model_loaded":true}
+
+# Predicao (inferencia real do modelo)
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Severe chest pain with dyspnea and diaphoresis, ECG shows ST elevation, suspect acute myocardial infarction."}'
+# {"prediction":"urgente"}
+```
+
+Respostas esperadas sem modelo válido dentro da imagem:
+
+```json
+{"detail": "Modelo de ML indisponivel."}
+```
+
+### Logs e parada
+
+```bash
+docker logs -f urgensight-api
+docker stop urgensight-api && docker rm urgensight-api
+```
+
+### Nota: reproducibilidade do `model.pkl`
+
+O `Dockerfile` copia o `models/model.pkl` presente no contexto de build. Para
+garantir que o artefato na imagem seja exatamente o esperado, o fluxo
+recomendado de CI/CD é:
+
+1. Treinar/validar o modelo no ambiente Airflow (Etapa 1.3).
+2. Copiar o `model.pkl` validado para o workspace da API.
+3. Rodar `docker build` — o artefato é congelado na imagem.
+4. Publicar a imagem tagueada com o hash do commit (ex: `urgensight-api:a1b2c3d`).
+
+Nunca montar `models/` como volume de desenvolvimento em produção: a imagem
+deve ser auto-contida e imutável.
+
+## Decisão Arquitetural em Nuvem
+
+Esta seção documenta a fundamentação teórica para uma eventual implantação
+da API UrgenSight em ambiente de produção na nuvem, considerando o contexto
+de triagem de laudos hospitalares.
+
+### Análise de Processamento: Batch vs. Real-time
+
+A escolha do padrão de processamento deve refletir a natureza clínica do
+problema. Um laudo classificado como `urgente` demanda ação humana em
+minutos, não em horas. Isso direciona a decisão:
+
+| Critério | Batch | Real-time |
+|----------|-------|-----------|
+| Latência por requisição | N/A (agregado, minutos a horas) | Millissegundos |
+| Adequação ao contexto clínico | **Inadequado**: um caso urgente esperaria o próximo ciclo do batch | **Adequado**: resposta imediata na chegada do laudo |
+| Complexidade operacional | Baixa (job agendado) | Média (serviço sempre ativo) |
+| Custo computacional | Menor (recursos sob demanda) | Maior (instâncias sempre provisionadas) |
+| Observabilidade | Agregada (métricas por lote) | Por requisição (SLA de 99.9%) |
+
+**Estratégia recomendada: Real-time (síncrono HTTP)**. Para triagem
+hospitalar, o requisito não-funcional dominante é o **tempo de detecção do
+caso urgente**. Um pipeline batch introduziria um intervalo de espera
+inaceitável entre a geração do laudo e a sinalização ao médico plantonista.
+A latência alvo de < 200 ms (p99) é facilmente atingida pelo pipeline
+TF-IDF + regressão logística (CPU-bound, sem I/O intensivo), tornando o
+modelo real-time tecnicamente viável e clinicamente necessário.
+
+Batch seria apropriado apenas como **camada secundária** — por exemplo, um
+job noturno de reconciliação que processa laudos do dia para fins de BI e
+auditoria de qualidade do modelo, sem impacto no fluxo clínico primário.
+
+### Provedor de Referência: AWS
+
+Selecionamos a **Amazon Web Services** pela maturidade do ecossistema de
+contêineres, presença de regiões no Brasil (`sa-east-1`, para reduzir
+latência com hospitais brasileiros) e pelo alinhamento com padrões de
+conformidade em saúde (HIPAA, ISO 27001, e equivalentes brasileiros como a
+LGPD).
+
+### Desenho Lógico AWS
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        AWS Cloud (sa-east-1)                     │
+│                                                                 │
+│  ┌──────────┐    ┌──────────────┐    ┌─────────────────────┐   │
+│  │ Hospital │───►│  ALB / NLB   │───►│  ECS Fargate        │   │
+│  │ (HTTPS)  │    │  (TLS term.) │    │  ┌───────────────┐  │   │
+│  └──────────┘    └──────────────┘    │  │ urgensight-   │  │   │
+│                                      │  │ api: latest   │  │   │
+│                                      │  │ (2-10 tasks)  │  │   │
+│                                      │  └───────────────┘  │   │
+│                                      └─────────────────────┘   │
+│                                                │               │
+│                      ┌─────────────────────────┘               │
+│                      ▼                                         │
+│              ┌──────────────┐                                  │
+│              │   ECR        │  (imagens Docker versionadas)    │
+│              └──────────────┘                                  │
+│                                                                 │
+│  Observabilidade: CloudWatch (logs, métricas, alarmes)          │
+│  Segredos:        Secrets Manager (nenhum segredo na imagem)    │
+│  Rede:            VPC privada, subnets em 2 AZs, NAT Gateway    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**API de inferência (ECS Fargate + ALB)**
+
+O Amazon ECS com Fargate elimina a gestão de servidores EC2, pagando
+apenas pelas tasks em execução. Escalabilidade horizontal automática
+baseada em CPU/memória (Target Tracking Scaling) acomoda picos de
+demanda (ex: plantões noturnos). O Application Load Balancer distribui
+tráfego entre tasks saudáveis em múltiplas AZs e encerra TLS com certificado
+do ACM (AWS Certificate Manager).
+
+**Alta disponibilidade e baixa latência**
+
+- **Multi-AZ**: tasks distribuídas em pelo menos duas zonas de
+  disponibilidade de `sa-east-1`; o Fargate substitui tasks não saudáveis
+  automaticamente (health check do Dockerfile já expõe `/health`).
+- **Auto Scaling**: alvo de 50% de utilização de CPU; sobe de 2 para 10
+  tasks em ~60 segundos sob carga.
+- **Latência**: região `sa-east-1` para minimizar RTT com hospitais
+  brasileiros; TF-IDF + LR roda inteiramente em RAM (sem banco de dados
+  no hot path), garantindo p99 < 50 ms dentro da task.
+
+**Governança de dados clínicos (LGPD)**
+
+- Laudos em trânsito: TLS 1.3 obrigatório no ALB.
+- Laudos em repouso: se houver persistência para auditoria, utilizar S3
+  com criptografia SSE-KMS e chave gerenciada dedicada.
+- Logs do CloudWatch: desabilitar logging do corpo da requisição (payload
+  do laudo) para não reter dados pessoais de saúde em texto plano.
+
+**CI/CD sugerido**
+
+Push para `main` → GitHub Actions → testes + análise de segurança →
+`docker build` → push para ECR com tag do commit → `ecs update-service`
+com rolling deployment. Rollback automático via CloudWatch alarmes
+(erros 5xx > 1% por 5 minutos).
+
+### Disclaimer
+
+**O escopo deste projeto (Tech Challenge — FIAP MLET) foi focado na
+engenharia da análise textual e na construção da API local containerizada.
+A infraestrutura em nuvem descrita nesta seção é uma fundamentação
+teórica de arquitetura e não contempla o provisionamento real,
+configuração de redes, custos ou conformidade com órgãos reguladores
+(ANVISA, CFM). Qualquer implantação em ambiente hospitalar real exigiria
+avaliação jurídica, testes de penetração e validação clínica do modelo.**
+
 ## Licença
 
 Uso acadêmico (Tech Challenge FIAP). Dataset original sob a licença do
