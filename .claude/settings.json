@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "command": "if [[ \"$TOOL_INPUT_FILE\" == *.py ]]; then ruff format \"$TOOL_INPUT_FILE\" && ruff check --fix \"$TOOL_INPUT_FILE\"; fi"
+      }
+    ],
+    "PreCommit": [
+      {
+        "command": "bash .claude/scripts/protect-secrets.sh && bash .claude/scripts/verify-semver.sh"
+      }
+    ]
+  }
+}
