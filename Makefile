@@ -1,7 +1,15 @@
 .PHONY: help dev run test test-cov lint format clean graphify setup-hooks pull-memory push-memory
 
-PYTHON ?= python
-UV ?= $(shell which uv 2>/dev/null || echo "uv")
+UV ?= $(shell which uv 2>/dev/null)
+ifeq ($(strip $(VIRTUAL_ENV)),)
+  ifneq ($(strip $(UV)),)
+    PYTHON ?= uv run python
+  else
+    PYTHON ?= python3
+  endif
+else
+  PYTHON ?= python
+endif
 
 help:
 	@echo "UrgenSight - Harness de Desenvolvimento"
@@ -49,7 +57,7 @@ graphify:
 
 setup-hooks:
 	@mkdir -p .git/hooks
-	@echo '#!/bin/bash\n# Pre-commit hook: Auto-stage team memories and format check\nif [ -d ".gemini/memory/team" ]; then\n  git add .gemini/memory/team/ 2>/dev/null || true\nfi\nif [ -d ".claude/memory/team" ]; then\n  git add .claude/memory/team/ 2>/dev/null || true\nfi\nexit 0' > .git/hooks/pre-commit
+	@printf '#!/bin/bash\n# Pre-commit hook: Auto-stage team memories, protect secrets, verify semver\nif [ -d ".gemini/memory/team" ]; then\n  git add .gemini/memory/team/ 2>/dev/null || true\nfi\nif [ -d ".claude/memory/team" ]; then\n  git add .claude/memory/team/ 2>/dev/null || true\nfi\nbash .claude/scripts/protect-secrets.sh || exit 1\nbash .claude/scripts/verify-semver.sh || exit 1\nexit 0\n' > .git/hooks/pre-commit
 	@chmod +x .git/hooks/pre-commit
 	@echo "Git pre-commit hooks configurados com sucesso."
 
