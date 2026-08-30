@@ -1,7 +1,14 @@
+# Secrets
+.env
+.env.*
+*.env
+
 # Python
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 *.egg-info/
@@ -19,6 +26,9 @@ models/history/
 
 # Airflow (docker-compose.yml)
 airflow_logs/
+
+# Knowledge Graph (mantem artefatos principais, ignora cache)
+graphify-out/
 
 # OS / editors
 .DS_Store
