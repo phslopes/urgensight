@@ -8,6 +8,7 @@ seed fixa e gera as amostras de benchmark em data/benchmark_samples.json.
 Uso:
     python -m src.prepare_dataset --seed 42 --test-size 0.2
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -82,7 +83,9 @@ def compute_cleaning_stats(df: pd.DataFrame) -> dict:
     return {
         "total_rows": int(len(df)),
         "null_label_rows": int(df[RAW_LABEL_COLUMN].isnull().sum()),
-        "null_or_blank_text_rows": int((text.isnull() | (text.str.strip() == "")).sum()),
+        "null_or_blank_text_rows": int(
+            (text.isnull() | (text.str.strip() == "")).sum()
+        ),
         "duplicate_text_rows": int(df.duplicated(subset=[RAW_TEXT_COLUMN]).sum()),
     }
 
@@ -90,7 +93,9 @@ def compute_cleaning_stats(df: pd.DataFrame) -> dict:
 def _validate_raw_columns(df: pd.DataFrame) -> None:
     missing = REQUIRED_RAW_COLUMNS - set(df.columns)
     if missing:
-        raise ValueError(f"Colunas obrigatorias ausentes no dataset bruto: {sorted(missing)}")
+        raise ValueError(
+            f"Colunas obrigatorias ausentes no dataset bruto: {sorted(missing)}"
+        )
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -147,7 +152,9 @@ def split_dataset(
     return train_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
 
-def build_benchmark_samples(df: pd.DataFrame, n_per_class: int = 15, seed: int = 42) -> list:
+def build_benchmark_samples(
+    df: pd.DataFrame, n_per_class: int = 15, seed: int = 42
+) -> list:
     """Amostra n_per_class registros por classe para benchmark/teste manual."""
     samples = []
     for target in sorted(VALID_TARGETS):
@@ -196,7 +203,9 @@ def main(argv=None) -> None:
     print("Distribuicao de classes:")
     print(distribution)
 
-    train_df, test_df = split_dataset(mapped_df, test_size=args.test_size, seed=args.seed)
+    train_df, test_df = split_dataset(
+        mapped_df, test_size=args.test_size, seed=args.seed
+    )
     train_df.to_csv(processed_dir / "train.csv", index=False)
     test_df.to_csv(processed_dir / "test.csv", index=False)
     print(f"Treino: {len(train_df)} amostras | Teste: {len(test_df)} amostras")
@@ -208,7 +217,9 @@ def main(argv=None) -> None:
     benchmark_path.write_text(
         json.dumps(benchmark_samples, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"Amostras de benchmark salvas em {benchmark_path} ({len(benchmark_samples)} amostras)")
+    print(
+        f"Amostras de benchmark salvas em {benchmark_path} ({len(benchmark_samples)} amostras)"
+    )
 
     _write_dataset_report(stats, mapped_df, distribution, train_df, test_df)
 

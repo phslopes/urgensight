@@ -3,6 +3,7 @@
 Nao fazem download real (sem acesso a rede): usam DataFrames sinteticos
 para validar limpeza, mapeamento de classes, split e amostragem de benchmark.
 """
+
 import json
 
 import pandas as pd
@@ -10,15 +11,15 @@ import pytest
 
 from src.prepare_dataset import (
     CONDITION_TO_URGENCY,
-    RAW_TEXT_COLUMN,
     RAW_LABEL_COLUMN,
-    TEXT_COLUMN,
+    RAW_TEXT_COLUMN,
     TARGET_COLUMN,
+    TEXT_COLUMN,
     VALID_TARGETS,
+    build_benchmark_samples,
     clean_data,
     map_labels,
     split_dataset,
-    build_benchmark_samples,
 )
 
 
@@ -108,7 +109,9 @@ class TestSplitDataset:
         rows = []
         for target in VALID_TARGETS:
             for i in range(n_per_class):
-                rows.append({TEXT_COLUMN: f"{target} sample {i}", TARGET_COLUMN: target})
+                rows.append(
+                    {TEXT_COLUMN: f"{target} sample {i}", TARGET_COLUMN: target}
+                )
         return pd.DataFrame(rows)
 
     def test_split_respects_test_size(self):
@@ -144,7 +147,9 @@ class TestBuildBenchmarkSamples:
         rows = []
         for target in VALID_TARGETS:
             for i in range(n_per_class):
-                rows.append({TEXT_COLUMN: f"{target} sample {i}", TARGET_COLUMN: target})
+                rows.append(
+                    {TEXT_COLUMN: f"{target} sample {i}", TARGET_COLUMN: target}
+                )
         return pd.DataFrame(rows)
 
     def test_samples_n_per_class(self):
@@ -158,7 +163,9 @@ class TestBuildBenchmarkSamples:
         df = self._mapped_df()
         samples = build_benchmark_samples(df, n_per_class=2, seed=42)
         out_path = tmp_path / "benchmark_samples.json"
-        out_path.write_text(json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8")
+        out_path.write_text(
+            json.dumps(samples, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         loaded = json.loads(out_path.read_text(encoding="utf-8"))
         assert loaded == samples
 

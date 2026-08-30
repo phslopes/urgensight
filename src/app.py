@@ -16,6 +16,7 @@ Uso:
 Documentacao interativa (Swagger UI): http://localhost:8000/docs
 Contrato formal da API: docs/api_contract.md
 """
+
 import logging
 from contextlib import asynccontextmanager
 from enum import Enum
@@ -47,7 +48,9 @@ class PredictRequest(BaseModel):
         ...,
         min_length=1,
         description="Texto do laudo medico a ser classificado.",
-        json_schema_extra={"example": "Paciente apresenta dor toracica intensa e dispneia."},
+        json_schema_extra={
+            "example": "Paciente apresenta dor toracica intensa e dispneia."
+        },
     )
 
 

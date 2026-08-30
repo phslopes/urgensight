@@ -4,6 +4,7 @@ Requer o pacote apache-airflow, que nao roda nativamente no Windows -- por
 isso os testes sao pulados automaticamente fora do container/CI Linux onde
 o Airflow esta instalado (ver docker-compose.yml).
 """
+
 import sys
 from pathlib import Path
 

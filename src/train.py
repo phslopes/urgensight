@@ -9,17 +9,18 @@ Uso:
     python -m src.train --train-path data/processed/train.csv \
         --test-path data/processed/test.csv --model logreg
 """
+
 import argparse
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src.prepare_dataset import TARGET_COLUMN, TEXT_COLUMN, VALID_TARGETS
 
@@ -127,7 +128,7 @@ def format_metrics_report(metrics: dict, config: dict) -> str:
         "| | " + " | ".join(cm["labels"]) + " |",
         "|---|" + "---|" * len(cm["labels"]),
     ]
-    for label, row in zip(cm["labels"], cm["matrix"]):
+    for label, row in zip(cm["labels"], cm["matrix"], strict=False):
         lines.append(f"| **{label}** | " + " | ".join(str(v) for v in row) + " |")
 
     lines += [
@@ -161,10 +162,16 @@ def load_pipeline(path: Path) -> Pipeline:
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--train-path", type=Path, default=Path("data/processed/train.csv"))
-    parser.add_argument("--test-path", type=Path, default=Path("data/processed/test.csv"))
+    parser.add_argument(
+        "--train-path", type=Path, default=Path("data/processed/train.csv")
+    )
+    parser.add_argument(
+        "--test-path", type=Path, default=Path("data/processed/test.csv")
+    )
     parser.add_argument("--model-out", type=Path, default=Path("models/model.pkl"))
-    parser.add_argument("--metrics-out", type=Path, default=Path("docs/model_metrics.md"))
+    parser.add_argument(
+        "--metrics-out", type=Path, default=Path("docs/model_metrics.md")
+    )
     parser.add_argument("--model", choices=sorted(MODEL_BUILDERS), default="logreg")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-features", type=int, default=20000)
@@ -184,7 +191,9 @@ def main(argv=None) -> None:
     validate_columns(test_df)
 
     print(f"Treinando modelo '{args.model}' (seed={args.seed})...")
-    pipeline = build_pipeline(args.model, seed=args.seed, max_features=args.max_features)
+    pipeline = build_pipeline(
+        args.model, seed=args.seed, max_features=args.max_features
+    )
     pipeline.fit(train_df[TEXT_COLUMN], train_df[TARGET_COLUMN])
 
     print("Avaliando modelo no conjunto de teste...")

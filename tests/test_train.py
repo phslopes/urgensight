@@ -3,7 +3,7 @@
 Usam DataFrames/pipelines sinteticos pequenos (sem depender do dataset real)
 para manter os testes rapidos e deterministicos.
 """
-import joblib
+
 import pandas as pd
 import pytest
 from sklearn.pipeline import Pipeline
@@ -14,8 +14,8 @@ from src.train import (
     evaluate_pipeline,
     format_metrics_report,
     load_dataset,
-    save_pipeline,
     load_pipeline,
+    save_pipeline,
     validate_columns,
 )
 
@@ -130,7 +130,9 @@ class TestFormatMetricsReport:
         pipeline = build_pipeline(model_name="logreg", seed=42).fit(X, y)
         metrics = evaluate_pipeline(pipeline, X, y)
 
-        report = format_metrics_report(metrics, config={"model_name": "logreg", "seed": 42})
+        report = format_metrics_report(
+            metrics, config={"model_name": "logreg", "seed": 42}
+        )
 
         assert "Accuracy" in report
         assert "Macro F1" in report

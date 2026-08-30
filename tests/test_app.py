@@ -12,6 +12,7 @@ deterministica em CI. Para os cenarios "modelo nao carregado", a fixture
 ``broken_model`` impede que o lifespan recarregue o modelo real no
 startup do TestClient, simulando falha de carga (ex.: arquivo ausente).
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
