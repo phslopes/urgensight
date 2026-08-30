@@ -12,32 +12,31 @@ Preencher antes da medição:
 
 | Item | Valor |
 |------|-------|
-| Data da medição | _AAAA-MM-DD_ |
-| Commit do código | _hash (ex: `a1b2c3d`)_ |
-| Versão da imagem | _ex: `urgensight-api:a1b2c3d`_ |
-| Docker version | _ex: 29.7.2_ |
-| SO da máquina host | _ex: Windows 11 / Ubuntu 24.04 / WSL2_ |
-| CPU | _ex: Intel i7-12700H (14C/20T)_ |
-| RAM disponível | _ex: 16 GB_ |
-| Workers do Uvicorn | _1 (padrão do CMD)_ |
+| Data da medição | 2026-08-30 |
+| Commit do código | `3600445` |
+| Versão da imagem | `urgensight:latest` |
+| Docker version | 29.4.1 |
+| SO da máquina host | macOS 26.6.2 (Darwin 25.6.0) |
+| CPU | Apple M4 Pro |
+| RAM disponível | 24 GB |
+| Workers do Uvicorn | 1 (padrão do CMD) |
 | Modelo | `models/model.pkl` (TF-IDF + LogisticRegression) |
 
 ## Cenário de teste
 
 Endpoint alvo: `POST /predict` (inferência real do pipeline TF-IDF + LR).
 
-Payload fixo usado em todas as requisições (representativo de um laudo real,
-~200 caracteres):
+Payload fixo usado em todas as requisições (representativo de um laudo real):
 
 ```json
-{"text": "Severe chest pain with dyspnea and diaphoresis, ECG shows ST elevation, suspect acute myocardial infarction."}
+{"text": "Paciente apresenta tosse e febre. Necessita triagem urgente."}
 ```
 
 Parâmetros do `hey`:
 
-- **Requisições totais**: `-n 1000`
-- **Concorrência**: `-c 10`
-- **Timeout por requisição**: `-t 10` (10s)
+- **Requisições totais**: `-n 100`
+- **Concorrência**: `-c 4`
+- **Método**: `POST`
 
 ## Procedimento
 
@@ -98,14 +97,17 @@ ab -n 1000 -c 10 \
 
 | Métrica | Resultado | Observações |
 |---------|-----------|-------------|
-| Requisições totais | 1000 | — |
-| Requisições com erro | _ex: 0_ | Deve ser 0; caso contrário, investigar antes de registrar |
-| **Tempo médio** | _ex: 8.2 ms_ | Latência média total (rede + processamento) |
-| **p50 (mediana)** | _ex: 7.5 ms_ | 50% das requisições abaixo deste valor |
-| **p95** | _ex: 14.1 ms_ | 95% das requisições abaixo deste valor |
-| **p99** | _ex: 22.8 ms_ | 99% das requisições abaixo deste valor |
-| **Tempo máximo** | _ex: 45.3 ms_ | Outlier observado |
-| Requisições/segundo | _ex: 1200 req/s_ | Throughput do servidor |
+| Requisições totais | 100 | — |
+| Requisições com erro | 0 | 100% de respostas HTTP 200 |
+| **Tempo mínimo** | 0.9 ms | Fastest |
+| **Tempo médio** | 3.2 ms | Latência média total (rede + processamento) |
+| **p50 (mediana)** | 2.4 ms | 50% das requisições abaixo deste valor |
+| **p75** | 3.1 ms | 75% das requisições abaixo deste valor |
+| **p90** | 4.0 ms | 90% das requisições abaixo deste valor |
+| **p95** | 5.8 ms | 95% das requisições abaixo deste valor |
+| **p99** | 21.2 ms | 99% das requisições abaixo deste valor |
+| **Tempo máximo** | 21.2 ms | Slowest |
+| Requisições/segundo | 1220.31 req/s | Throughput do servidor |
 
 ### 5. Encerrar
 

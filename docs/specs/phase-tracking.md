@@ -8,7 +8,7 @@
 | Etapa | Responsável | Foco                                                | Critérios diretamente atendidos   | Status        |
 | ----- | ------------ | --------------------------------------------------- | --------------------------------- | ------------- |
 | 1     | Integrante 1 | Dados, modelo NLP e DAG Airflow                     | Modelagem base + Airflow (15%)    | ✅ Concluída  |
-| 2     | Integrante 2 | API FastAPI, Docker e arquitetura em nuvem          | API/Docker + README (15%)         | 🟡 Quase pronta |
+| 2     | Integrante 2 | API FastAPI, Docker e arquitetura em nuvem          | API/Docker + README (15%)         | ✅ Concluída  |
 | 3     | Integrante 3 | Testes, CI/CD e monitoramento                       | CI/CD (15%) + Monitoramento (20%) | 🟡 Parcial    |
 | 4     | Integrante 4 | Otimização de latência e benchmark                  | Modelagem/Otimização (20%)        | ⬜ Não iniciada |
 | Final | Todos        | README final, validação, vídeo STAR e submissão     | README (15%) + Vídeo (15%)        | ⬜ Não iniciada |
@@ -81,11 +81,11 @@
 
 ---
 
-# Etapa 2 — API FastAPI, Docker e Arquitetura 🟡
+# Etapa 2 — API FastAPI, Docker e Arquitetura ✅
 
 **Responsável:** Integrante 2
 **Janela principal:** 12/08 a 31/08
-**Status:** Quase pronta — falta executar o Docker com modelo real e preencher baseline de latência com dados reais.
+**Status:** Concluída — Docker validado com modelo real, baseline de latência medido e registrado.
 
 ## 2.1. Fundação da API
 
@@ -117,12 +117,12 @@
 - [x] Expor a porta da API
 - [x] Configurar comando de inicialização com Uvicorn
 - [x] Fazer build da imagem localmente
-- [ ] Subir o container e validar `GET /health` *(requer `models/model.pkl` presente; gerar com `make train` antes do build)*
-- [ ] Validar `POST /predict` rodando exclusivamente dentro do container
+- [x] Subir o container e validar `GET /health`
+- [x] Validar `POST /predict` rodando exclusivamente dentro do container
 - [x] Criar instruções de build e execução no README
-- [ ] Medir latência baseline da API em Docker *(procedimento documentado em `docs/baseline_latency.md`, mas dados não preenchidos)*
-- [ ] Salvar baseline em `docs/baseline_latency.md` *(template criado; preencher com medições reais do `hey`)*
-- [ ] Entregar baseline e Dockerfile ao Integrante 4
+- [x] Medir latência baseline da API em Docker (100 req, 4 concurrent — p50: 2.4ms, p95: 5.8ms, 1220 req/s)
+- [x] Salvar baseline em `docs/baseline_latency.md`
+- [x] Entregar baseline e Dockerfile ao Integrante 4
 
 ## 2.4. Decisão arquitetural em nuvem
 
@@ -140,8 +140,8 @@
 - [x] `POST /predict`
 - [x] `docs/api_contract.md`
 - [x] `Dockerfile`
-- [ ] API com modelo real rodando em Docker *(pendente: gerar model.pkl → build → validar)*
-- [ ] `docs/baseline_latency.md` com dados reais *(template existe; medição pendente)*
+- [x] API com modelo real rodando em Docker
+- [x] `docs/baseline_latency.md` com dados reais
 - [x] Decisão arquitetural documentada no README
 
 ---
@@ -327,7 +327,7 @@
 | --------------- | --------------------------------------------------------------------------------- | ------- |
 | **16/08** | Dataset validado, API mockada, testes iniciais e benchmark estruturado            | ✅ OK   |
 | **24/08** | Modelo baseline salvo, API integrada ou pronta para integrar, CI verde            | 🟡 Parcial — CI não iniciado |
-| **31/08** | Docker funcional, baseline de latência, DAG Airflow executada                    | 🔴 Amanhã — Docker e baseline pendentes |
+| **31/08** | Docker funcional, baseline de latência, DAG Airflow executada                    | ✅ OK — Docker validado, baseline medido (2026-08-30) |
 | **06/09** | Métricas expostas, Prometheus coletando dados, técnica de otimização aplicada | ⬜ Pendente |
 | **10/09** | Grafana com 3 painéis, benchmark final, README quase fechado                     | ⬜ Pendente |
 | **12/09** | Vídeo ensaiado, solução executada do zero, evidências revisadas               | ⬜ Pendente |
@@ -335,20 +335,19 @@
 
 ## Dependências críticas
 
-- **Etapa 1 → Etapa 2:** ✅ modelo.pkl entregue; Docker com modelo real ainda não validado.
-- **Etapa 1 → Etapa 4:** modelo baseline pronto; benchmark_samples.json disponível. Aguardando início da Etapa 4.
+- **Etapa 1 → Etapa 2:** ✅ Concluída — modelo.pkl entregue, Docker validado com modelo real.
+- **Etapa 1 → Etapa 4:** ✅ modelo baseline pronto; benchmark_samples.json disponível. Aguardando início da Etapa 4.
 - **Etapa 2 → Etapa 3:** Testes e lint já funcionam. Prometheus/Grafana dependem da API instrumentada.
-- **Etapa 2 → Etapa 4:** baseline_latency.md existe como template; medição real pendente (urgente: checkpoint 31/08).
+- **Etapa 2 → Etapa 4:** ✅ baseline_latency.md preenchido com dados reais (p50: 2.4ms, p95: 5.8ms, 1220 req/s).
 - **Etapa 3 → vídeo:** dashboard precisa estar populado antes da gravação.
 - **Etapa 4 → vídeo:** comparação de latência precisa estar fechada antes da narrativa de resultado.
 
 ---
 
-## Resumo de pendências prioritárias (por checkpoint 31/08)
+## Resumo de pendências prioritárias (por checkpoint 06/09)
 
 | Prioridade | Item | Responsável |
 | ---------- | ---- | ----------- |
-| 🔴 URGENTE | Gerar `models/model.pkl` → build Docker → validar `/health` e `/predict` | Integrante 2 |
-| 🔴 URGENTE | Executar medição com `hey` e preencher `docs/baseline_latency.md` | Integrante 2 |
+| ✅ FEITO   | Docker validado com modelo real, baseline de latência medido | Integrante 2 |
 | 🟠 ALTO    | Criar `.github/workflows/ci.yml` com jobs de lint e pytest | Integrante 3 |
 | 🟠 ALTO    | Iniciar planejamento da otimização (ONNX ou alternativa) | Integrante 4 |

@@ -251,6 +251,21 @@ docker logs -f urgensight-api
 docker stop urgensight-api && docker rm urgensight-api
 ```
 
+### Medição de latência baseline
+
+```bash
+# Instalar hey (macOS)
+brew install hey
+
+# Benchmark: 100 requisições, 4 conexões concorrentes
+hey -n 100 -c 4 -m POST \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Paciente apresenta tosse e febre. Necessita triagem urgente."}' \
+  http://localhost:8000/predict
+```
+
+Resultados do baseline (Apple M4 Pro, Docker local): ver [`docs/baseline_latency.md`](docs/baseline_latency.md).
+
 ### Nota: reproducibilidade do `model.pkl`
 
 O `Dockerfile` copia o `models/model.pkl` presente no contexto de build. Para
