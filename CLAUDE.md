@@ -24,3 +24,4 @@ Before performing raw grep/glob traversals across unfamiliar modules:
 - Never expose or commit sensitive data (`.env`, credentials, patient raw data).
 - Keep tests isolated: never require active network or external database in unit tests.
 - Maintain SemVer and update docs whenever API endpoints or schemas change.
+- **Commit Messages Standard**: Always write commit messages following **Conventional Commits in Brazilian Portuguese (PT-BR)** (e.g., `feat(api): adicionar endpoint`, `fix(pipeline): corrigir preprocessamento`, `docs(ai): atualizar plano`).

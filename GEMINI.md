@@ -22,3 +22,6 @@ O UrgenSight é um sistema inteligente de triagem de laudos médicos hospitalare
 ## 👥 Memória Persistente de Equipe
 - Diretório de memórias compartilhadas: `.gemini/memory/team/`.
 - Registre decisões de arquitetura (ADRs) e regras de negócio validadas. Auto-staging habilitado via pre-commit hook.
+
+## 📝 Padrão de Commits
+- Utilize rigorosamente o padrão **Conventional Commits em português (PT-BR)** (ex: `feat(api): ...`, `fix(modelo): ...`, `docs(ai): ...`, `chore(harness): ...`).
