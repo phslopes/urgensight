@@ -1,4 +1,4 @@
-.PHONY: help dev run test test-cov lint format clean graphify setup-hooks pull-memory push-memory
+.PHONY: help dev run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory
 
 UV ?= $(shell which uv 2>/dev/null)
 ifeq ($(strip $(VIRTUAL_ENV)),)
@@ -21,10 +21,15 @@ help:
 	@echo "make lint         - Executa analise estatica com Ruff"
 	@echo "make format       - Formata codigo com Ruff"
 	@echo "make clean        - Limpa caches e arquivos temporarios"
+	@echo "make train        - Prepara dataset e treina o modelo (gera models/model.pkl)"
 	@echo "make graphify     - Atualiza o Knowledge Graph do projeto"
 	@echo "make setup-hooks  - Instala Git hooks de governanca e auto-staging"
 	@echo "make pull-memory  - Sincroniza memorias locais com memorias da equipe"
 	@echo "make push-memory  - Faz commit e publicacao de memorias da equipe"
+
+train:
+	$(PYTHON) -m src.prepare_dataset
+	$(PYTHON) -m src.train
 
 dev:
 	docker compose up -d --build
