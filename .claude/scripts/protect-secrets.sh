@@ -9,7 +9,7 @@ CACHED_FILES=$(git diff --cached --name-only || true)
 
 if [ -n "$CACHED_FILES" ]; then
   for pattern in "${PATTERNS[@]}"; do
-    if echo "$CACHED_FILES" | xargs grep -E "$pattern" 2>/dev/null; then
+    if git diff --cached -z --name-only | xargs -0 grep -E "$pattern" 2>/dev/null; then
       echo "❌ BLOQUEIO: Possivel segredo detectado com padrao: $pattern"
       exit 1
     fi
