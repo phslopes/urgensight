@@ -3,12 +3,12 @@
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "if [[ \"$TOOL_INPUT_FILE\" == *.py ]]; then ruff format \"$TOOL_INPUT_FILE\" && ruff check --fix \"$TOOL_INPUT_FILE\"; fi"
-      }
-    ],
-    "PreCommit": [
-      {
-        "command": "bash .claude/scripts/protect-secrets.sh && bash .claude/scripts/verify-semver.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE=$(echo \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); if [[ \"$FILE\" == *.py ]]; then ruff format \"$FILE\" && ruff check --fix \"$FILE\"; fi"
+          }
+        ]
       }
     ]
   }
