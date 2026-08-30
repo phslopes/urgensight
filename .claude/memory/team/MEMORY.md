@@ -4,4 +4,4 @@ Este diretório contém o conhecimento compartilhado e decisões de arquitetura 
 
 ## Índice de Decisões
 - [Convenção de Artefatos de IA](ai-artifacts-directory-convention.md) - Todos os artefatos de IA devem residir exclusivamente em `docs/ai/`.
-- [Padrão de Conventional Commits em PT-BR](conventional-commits-pt-br.md) - Mensagens de commit devem seguir Conventional Commits em português (PT-BR).
+- [Arquitetura de Triagem ML](adr-001-ml-architecture.md) - Pipeline Scikit-Learn TF-IDF + Logistic Regression com FastAPI e Airflow.
