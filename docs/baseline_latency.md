@@ -13,7 +13,7 @@ Preencher antes da medição:
 | Item | Valor |
 |------|-------|
 | Data da medição | 2026-08-30 |
-| Commit do código | `3600445` |
+| Commit do código | `5592d8e` |
 | Versão da imagem | `urgensight:latest` |
 | Docker version | 29.4.1 |
 | SO da máquina host | macOS 26.6.2 (Darwin 25.6.0) |
@@ -60,11 +60,11 @@ As primeiras requisições incluem JIT/warm-up do Python e do scikit-learn.
 Executar 100 requisições de aquecimento **antes** da medição oficial:
 
 ```bash
-hey -n 100 -c 10 \
+hey -n 100 -c 4 \
   -m POST \
   -H "Content-Type: application/json" \
-  -d '{"text": "Severe chest pain with dyspnea and diaphoresis, ECG shows ST elevation, suspect acute myocardial infarction."}' \
-  http://localhost:8000/predict > nul 2>&1
+  -d '{"text": "Paciente apresenta tosse e febre. Necessita triagem urgente."}' \
+  http://localhost:8000/predict > /dev/null 2>&1
 ```
 
 > **Nota Windows**: `> nul 2>&1` descarta a saída. Em Linux/macOS use
