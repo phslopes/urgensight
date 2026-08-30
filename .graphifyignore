@@ -22,5 +22,5 @@ dist/
 build/
 .git/
 
-# Saida do proprio graphify
-graphify-out/
+# Cache interno do graphify
+graphify-out/cache/
