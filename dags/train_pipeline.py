@@ -6,6 +6,7 @@ Simula um fluxo de retreino agendado com 3 tasks, nessa ordem obrigatoria:
 Reutiliza diretamente as funcoes de src/prepare_dataset.py e src/train.py
 (nenhuma logica de treino e duplicada aqui).
 """
+
 import os
 import shutil
 from datetime import datetime
@@ -47,7 +48,9 @@ def train_pipeline():
         validate_columns(train_df)
         validate_columns(test_df)
 
-        print(f"Dataset validado: treino={len(train_df)} amostras, teste={len(test_df)} amostras")
+        print(
+            f"Dataset validado: treino={len(train_df)} amostras, teste={len(test_df)} amostras"
+        )
         return {"train_path": str(train_path), "test_path": str(test_path)}
 
     @task
@@ -69,8 +72,12 @@ def train_pipeline():
         pipeline = build_pipeline(model_name="logreg", seed=seed)
         pipeline.fit(train_df[TEXT_COLUMN], train_df[TARGET_COLUMN])
 
-        metrics = evaluate_pipeline(pipeline, test_df[TEXT_COLUMN], test_df[TARGET_COLUMN])
-        report = format_metrics_report(metrics, config={"model_name": "logreg", "seed": seed})
+        metrics = evaluate_pipeline(
+            pipeline, test_df[TEXT_COLUMN], test_df[TARGET_COLUMN]
+        )
+        report = format_metrics_report(
+            metrics, config={"model_name": "logreg", "seed": seed}
+        )
 
         staging_path = MODELS_DIR / "model_staging.pkl"
         save_pipeline(pipeline, staging_path)
@@ -78,7 +85,9 @@ def train_pipeline():
         DOCS_DIR.mkdir(parents=True, exist_ok=True)
         (DOCS_DIR / "model_metrics.md").write_text(report, encoding="utf-8")
 
-        print(f"Treino concluido: accuracy={metrics['accuracy']:.4f}, macro_f1={metrics['macro_f1']:.4f}")
+        print(
+            f"Treino concluido: accuracy={metrics['accuracy']:.4f}, macro_f1={metrics['macro_f1']:.4f}"
+        )
         return {
             "staging_path": str(staging_path),
             "accuracy": metrics["accuracy"],
