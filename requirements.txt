@@ -10,3 +10,5 @@ dill>=0.3.1
 # API REST de inferencia (Etapa 2 - src/app.py)
 fastapi>=0.110
 uvicorn[standard]>=0.29
+# Instrumentacao de metricas (Etapa 3 - src/metrics.py)
+prometheus-client>=0.20

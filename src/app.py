@@ -25,6 +25,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from src.metrics import setup_metrics
+
 logger = logging.getLogger(__name__)
 
 # Caminho absoluto ancorado na raiz do projeto (dois niveis acima deste
@@ -123,6 +125,7 @@ app = FastAPI(
     version="0.2.0",
     lifespan=lifespan,
 )
+setup_metrics(app)
 
 
 def _require_model():
