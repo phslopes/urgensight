@@ -66,8 +66,7 @@ def test_metrics_and_health_are_excluded_from_business_metrics(real_model):
 def test_model_loaded_gauge_is_one_when_model_loaded(real_model):
     with TestClient(app) as client:
         client.get("/health")
-
-    assert sample_value(MODEL_LOADED, "model_loaded", {}) == 1.0
+        assert sample_value(MODEL_LOADED, "model_loaded", {}) == 1.0
 
 
 def test_model_loaded_gauge_is_zero_when_model_missing(broken_model):

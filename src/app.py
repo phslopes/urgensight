@@ -114,6 +114,7 @@ async def lifespan(app: FastAPI):
         )
     yield
     model_pipeline = None
+    MODEL_LOADED.set(0)
 
 
 app = FastAPI(
@@ -179,5 +180,6 @@ def predict(request: PredictRequest) -> PredictResponse:
     """
     pipeline = _require_model()
     prediction = pipeline.predict([request.text])[0]
-    PREDICTIONS_TOTAL.labels(urgency=str(prediction)).inc()
-    return PredictResponse(prediction=PredictionLabel(prediction))
+    validated = PredictionLabel(prediction)
+    PREDICTIONS_TOTAL.labels(urgency=validated.value).inc()
+    return PredictResponse(prediction=validated)
