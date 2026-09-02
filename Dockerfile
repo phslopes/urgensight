@@ -19,8 +19,9 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:0.11.1 /uv /bin/uv
 
 # Dependencias primeiro: aproveita o cache de camadas (o layer so e refeito
-# quando pyproject.toml ou uv.lock mudam). --no-default-groups exclui dev e
-# pipeline: a API nao usa pandas, requests, pytest nem dvc.
+# quando pyproject.toml ou uv.lock mudam). --no-default-groups instala so
+# [project.dependencies] (sem dev/pipeline) - inclui pandas e requests
+# (necessarios por cadeia de imports em src.train -> src.prepare_dataset).
 COPY pyproject.toml uv.lock ./
 ENV UV_PROJECT_ENVIRONMENT=/usr/local
 RUN uv sync --frozen --no-default-groups --no-cache
