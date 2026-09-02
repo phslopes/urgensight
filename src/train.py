@@ -11,6 +11,7 @@ Uso:
 """
 
 import argparse
+import json
 from pathlib import Path
 
 import joblib
@@ -145,6 +146,26 @@ def format_metrics_report(metrics: dict, config: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def format_metrics_json(metrics: dict, config: dict) -> dict:
+    """Achata as metricas em escalares para `dvc metrics show/diff`.
+
+    O relatorio Markdown continua sendo a evidencia legivel da entrega; este
+    JSON existe para que o DVC consiga comparar runs entre commits.
+    """
+    payload = {
+        "model": config["model_name"],
+        "seed": config["seed"],
+        "accuracy": round(float(metrics["accuracy"]), 4),
+        "macro_f1": round(float(metrics["macro_f1"]), 4),
+        "weighted_f1": round(float(metrics["weighted_f1"]), 4),
+    }
+    for target in sorted(VALID_TARGETS):
+        payload[f"f1_{target}"] = round(
+            float(metrics["per_class"][target]["f1-score"]), 4
+        )
+    return payload
+
+
 def save_pipeline(pipeline: Pipeline, path: Path) -> None:
     """Serializa o pipeline completo (vetorizador + modelo) via joblib."""
     path = Path(path)
@@ -171,6 +192,9 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--model-out", type=Path, default=Path("models/model.pkl"))
     parser.add_argument(
         "--metrics-out", type=Path, default=Path("docs/model_metrics.md")
+    )
+    parser.add_argument(
+        "--metrics-json-out", type=Path, default=Path("docs/model_metrics.json")
     )
     parser.add_argument("--model", choices=sorted(MODEL_BUILDERS), default="logreg")
     parser.add_argument("--seed", type=int, default=42)
@@ -206,6 +230,15 @@ def main(argv=None) -> None:
     args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
     args.metrics_out.write_text(report, encoding="utf-8")
     print(f"Metricas salvas em {args.metrics_out}")
+
+    payload = format_metrics_json(
+        metrics, config={"model_name": args.model, "seed": args.seed}
+    )
+    args.metrics_json_out.parent.mkdir(parents=True, exist_ok=True)
+    args.metrics_json_out.write_text(
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"Metricas (JSON) salvas em {args.metrics_json_out}")
 
     save_pipeline(pipeline, args.model_out)
     print(f"Pipeline salvo em {args.model_out}")
