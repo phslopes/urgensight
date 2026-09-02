@@ -95,7 +95,7 @@ Caminho recomendado: reaproveita o cache do DVC (não repete o download se
 funcionando como alternativa:
 
 ```bash
-python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
+uv run python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
 ```
 
 Saídas geradas:
@@ -123,7 +123,7 @@ vêm de `params.yaml`. O comando direto continua funcionando como
 alternativa:
 
 ```bash
-python -m src.train --model logreg --seed 42
+uv run python -m src.train --model logreg --seed 42
 ```
 
 Opções disponíveis: `--train-path`, `--test-path`, `--model-out`,
@@ -138,21 +138,24 @@ Para validar isoladamente que o modelo salvo carrega e prediz corretamente
 sobre as amostras de benchmark:
 
 ```bash
-pytest tests/test_model_loading.py -v
+uv run pytest tests/test_model_loading.py -v
 ```
 
 ## DAG de retreino no Airflow (Etapa 1.3)
 
 Pré-requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 instalado e em execução, e o dataset já processado (rode a Etapa 1.1 antes:
-`python -m src.prepare_dataset`).
+`uv run python -m src.prepare_dataset`).
 
 A DAG `train_pipeline` simula um fluxo de retreino agendado (`@weekly`) com
 3 tasks, na ordem obrigatória `carregamento/validação dos dados → treino →
-salvamento do modelo`, reutilizando diretamente as funções de
-`src/prepare_dataset.py` e `src/train.py` (nenhuma lógica é duplicada). A
-cada execução, o modelo treinado é promovido para `models/model.pkl` e uma
-cópia versionada por timestamp é salva em `models/history/`.
+salvamento do modelo`. Cada task chama os estágios do pipeline DVC
+(`dvc repro prepare`, `dvc repro train`, `dvc push`) via subprocess — a
+lógica de dados e treino mora em `dvc.yaml`, que por sua vez chama
+`src/prepare_dataset.py` e `src/train.py` (ver seção
+["Pipeline de dados com DVC"](#pipeline-de-dados-com-dvc)). A cada execução,
+o modelo treinado é promovido para `models/model.pkl` e uma cópia
+versionada por timestamp é salva em `models/history/`.
 
 ### Subir o ambiente
 
@@ -220,6 +223,7 @@ O pipeline de dados e treino é declarado em `dvc.yaml`, com três estágios:
 download  →  prepare  →  train
 data/raw     data/processed   models/model.pkl
              benchmark_samples.json   docs/model_metrics.{md,json}
+             docs/dataset_distribution.md
 ```
 
 Os hiperparâmetros ficam em `params.yaml` — fonte única, consumida tanto pela
@@ -232,8 +236,15 @@ uv run dvc pull
 ```
 
 Baixa `data/` e `models/model.pkl` do remote local (`.dvcstore/`) na versão
-correspondente ao commit atual, sem depender do repositório de terceiros de
-onde o corpus foi originalmente baixado.
+correspondente ao commit atual — **reaproveitando o cache já existente na
+mesma máquina**, sem re-treinar nem reprocessar nada. `.dvcstore/` está no
+`.gitignore`: existe só na máquina onde alguém rodou `dvc push`, não é
+publicado junto com o repositório. Numa máquina nova (clone limpo, sem
+`.dvcstore/` local), `dvc pull` não tem de onde baixar; o primeiro
+`uv run dvc repro` ainda faz o download original do corpus em
+`raw.githubusercontent.com` (estágio `download`). O valor do remote local é
+reuso de cache/reprodutibilidade na mesma máquina entre execuções, não
+eliminar essa dependência externa para todo o time.
 
 ### Reproduzir o pipeline
 

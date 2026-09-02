@@ -65,8 +65,13 @@ material da Fase 2 aceita "local ou S3".
 
 - A imagem do Airflow ganha `git` e `dvc`, e precisa de
   `safe.directory` configurado (o repo é um volume com uid diferente).
-- `data/raw` deixa de depender de um host de terceiros após o primeiro
-  `dvc push`: qualquer integrante faz `dvc pull`.
+- `.dvcstore/` (remote local) fica no `.gitignore` — existe só na máquina que
+  rodou `dvc push`, não é publicado com o repositório. `dvc pull` reaproveita
+  esse cache **na mesma máquina** entre execuções, sem re-treinar; não
+  elimina a dependência do host de terceiros para o time todo. Um integrante
+  que clona o repositório do zero tem um remote local vazio, e o primeiro
+  `dvc repro` ainda baixa o corpus original de `raw.githubusercontent.com`
+  (estágio `download`).
 - `dvc.lock` passa a responder "quais dados + código + parâmetros geraram este
   modelo".
 - `models/history/` continua existindo e agora é redundante com o `dvc.lock`;

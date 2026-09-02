@@ -3,8 +3,12 @@
 Simula um fluxo de retreino agendado com 3 tasks, nessa ordem obrigatoria:
     carregamento/validacao dos dados -> treino -> salvamento do modelo
 
-Reutiliza diretamente as funcoes de src/prepare_dataset.py e src/train.py
-(nenhuma logica de treino e duplicada aqui).
+A DAG orquestra o pipeline do DVC: cada task chama `dvc repro <stage>` (ou
+`dvc push`) via subprocess, preservando os 3 task_id e a ordem acima. A
+logica de dados e treino mora em dvc.yaml, que por sua vez chama
+src/prepare_dataset.py e src/train.py -- esta DAG so importa
+load_dataset/validate_columns de src/train.py para uma validacao leve apos
+o `dvc repro prepare`.
 """
 
 import os
