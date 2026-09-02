@@ -56,7 +56,13 @@ def setup_metrics(app: FastAPI) -> None:
     @app.middleware("http")
     async def _metrics_middleware(request: Request, call_next):
         path = request.url.path
-        if path in EXCLUDED_PATHS:
+        # O Mount() do /metrics faz o Starlette redirecionar GET /metrics
+        # (sem barra final) para GET /metrics/ com 307 -- o proprio scrape do
+        # Prometheus segue esse redirect. Sem o rstrip, a requisicao pos-
+        # redirect chega com path "/metrics/" e escapa da exclusao, poluindo
+        # http_requests_total com o proprio trafego de monitoramento (o
+        # problema que esta exclusao existe para evitar, ver ADR-0004).
+        if path.rstrip("/") in EXCLUDED_PATHS:
             return await call_next(request)
 
         start = time.perf_counter()
