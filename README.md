@@ -42,6 +42,10 @@ Dockerfile                 # imagem da API de inferencia
 Dockerfile.airflow         # imagem do Airflow (nao e a imagem da API)
 pyproject.toml         # dependencias, grupos e configuracao de ruff/pytest
 uv.lock                # versoes exatas (fonte de verdade)
+params.yaml   # hiperparametros do pipeline (fonte unica)
+dvc.yaml      # estagios: download -> prepare -> train
+dvc.lock      # hashes dos dados/modelo de cada execucao
+.dvcstore/    # remote local do DVC (nao versionado)
 ```
 
 ## Instalação
@@ -83,6 +87,14 @@ limpa os dados, mapeia as classes clínicas originais para `normal` /
 benchmark:
 
 ```bash
+uv run dvc repro prepare
+```
+
+Caminho recomendado: reaproveita o cache do DVC (não repete o download se
+`data/raw` já estiver presente e inalterado). O comando direto continua
+funcionando como alternativa:
+
+```bash
 python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
 ```
 
@@ -100,6 +112,15 @@ ver [docs/dataset.md](docs/dataset.md).
 Treina um pipeline TF-IDF + classificador leve (Logistic Regression por
 padrão, ou Linear SVC) sobre o dataset processado, avalia accuracy e F1 por
 classe e serializa o pipeline completo:
+
+```bash
+uv run dvc repro train
+```
+
+Caminho recomendado: reaproveita o cache do DVC — se `data/processed` não
+mudou desde a última execução, só o estágio `train` roda. Os hiperparâmetros
+vêm de `params.yaml`. O comando direto continua funcionando como
+alternativa:
 
 ```bash
 python -m src.train --model logreg --seed 42
@@ -189,6 +210,52 @@ docker compose -f docker-compose.airflow.yml down
 
 # reset completo do metastore (remove o volume do Postgres)
 docker compose -f docker-compose.airflow.yml down -v
+```
+
+## Pipeline de dados com DVC
+
+O pipeline de dados e treino é declarado em `dvc.yaml`, com três estágios:
+
+```
+download  →  prepare  →  train
+data/raw     data/processed   models/model.pkl
+             benchmark_samples.json   docs/model_metrics.{md,json}
+```
+
+Os hiperparâmetros ficam em `params.yaml` — fonte única, consumida tanto pela
+execução local quanto pela DAG do Airflow.
+
+### Obter os dados e o modelo
+
+```bash
+uv run dvc pull
+```
+
+Baixa `data/` e `models/model.pkl` do remote local (`.dvcstore/`) na versão
+correspondente ao commit atual, sem depender do repositório de terceiros de
+onde o corpus foi originalmente baixado.
+
+### Reproduzir o pipeline
+
+```bash
+uv run dvc repro
+```
+
+O DVC reexecuta **apenas** os estágios afetados. Alterar
+`train.max_features` em `params.yaml` retreina o modelo sem reprocessar os
+17 MB de `data/raw`.
+
+### Experimentar sem editar `params.yaml`
+
+```bash
+uv run dvc exp run -S train.max_features=500
+uv run dvc metrics diff
+```
+
+### Publicar artefatos
+
+```bash
+uv run dvc push
 ```
 
 ## API de inferência (Etapa 2)

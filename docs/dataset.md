@@ -11,6 +11,13 @@ Os arquivos originais (`medical_tc_train.csv`, `medical_tc_test.csv`) são
 baixados automaticamente pelo script `src/prepare_dataset.py` diretamente do
 GitHub e salvos em `data/raw/` (não versionados — ver `.gitignore`).
 
+Caminho recomendado para obter os dados: `uv run dvc pull` (ver
+[ADR-0006](ai/adr/0006-dvc-como-fonte-de-verdade-do-pipeline.md)) — baixa
+`data/raw` já processado do remote local do DVC, sem depender do GitHub de
+terceiros. O download direto via `src/prepare_dataset.py` continua
+funcionando como fallback (ex.: primeira execução, antes de qualquer
+`dvc push`).
+
 ## Formato original
 
 | Coluna | Descrição |

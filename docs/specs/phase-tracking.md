@@ -230,6 +230,17 @@ populados por tráfego real.
 - [x] `monitoring/dashboard.json`
 - [x] Prints com métricas reais
 
+### Adendo (2026-09-02) — DVC, uv e Python 3.12
+
+- [x] Piso único de Python 3.12 ([ADR-0008](../ai/adr/0008-piso-unico-de-python.md))
+- [x] uv com lock único e grupos PEP 735 ([ADR-0007](../ai/adr/0007-uv-com-lock-unico.md))
+- [x] Pipeline DVC reprodutível ([ADR-0006](../ai/adr/0006-dvc-como-fonte-de-verdade-do-pipeline.md))
+
+Fora da rubrica da Fase 3 (DVC pertence à Fase 2); adotado para eliminar a
+divergência de `numpy` entre treino e inferência e centralizar os
+hiperparâmetros. **A Etapa 4 (ONNX/benchmark, 20% da nota) permanece a maior
+pendência.**
+
 ---
 
 # Etapa 4 — Otimização e Benchmark de Latência ⬜
