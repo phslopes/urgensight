@@ -8,9 +8,10 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 
 ## Status
 
-- [x] Etapa 1.1 — Dataset e preparação
-- [x] Etapa 1.2 — Modelo baseline
-- [x] Etapa 1.3 — DAG Airflow
+- [x] Etapa 1 — Dataset, modelo baseline e DAG Airflow
+- [x] Etapa 2 — API FastAPI, Docker e decisão arquitetural
+- [x] Etapa 3 — Testes, CI/CD e observabilidade
+- [ ] Etapa 4 — Otimização de latência e benchmark
 
 ## Estrutura do projeto
 
@@ -35,23 +36,17 @@ docs/
   airflow_run_evidence.png # print de uma execução bem-sucedida da DAG (Etapa 1.3)
 dags/
   train_pipeline.py        # DAG de retreino: carregamento -> treino -> salvamento
-docker-compose.yml    # ambiente local do Airflow (Postgres + webserver + scheduler)
-Dockerfile.airflow    # imagem do Airflow usada pelo docker-compose (não é a imagem da API)
+docker-compose.yml         # stack de monitoramento (API + Prometheus + Grafana)
+docker-compose.airflow.yml # ambiente local do Airflow (Postgres + webserver + scheduler)
+Dockerfile                 # imagem da API de inferencia
+Dockerfile.airflow         # imagem do Airflow (nao e a imagem da API)
 requirements.txt      # dependências de runtime (também instaladas na imagem do Airflow)
 requirements-dev.txt  # requirements.txt + pytest (uso local)
 ```
 
 ## Instalação
 
-Pré-requisitos: Python 3.10+.
-
-> Confirme a versão antes de criar a venv (`python3 --version`): em alguns
-> sistemas o `python3` padrão do `PATH` é mais antigo (ex.: 3.9). Com uma
-> versão abaixo de 3.10 os testes falham com erros obscuros como
-> `TypeError: zip() takes no keyword arguments` (o parâmetro `strict=` do
-> `zip()` só existe a partir do 3.10) — use `python3.10`/`python3.11`/
-> `python3.12`/`python3.13` (ou o binário equivalente do seu sistema)
-> explicitamente se necessário.
+Pré-requisitos: Python 3.12+ (o arquivo `.python-version` fixa `3.12`).
 
 ```bash
 python -m venv .venv
@@ -134,7 +129,8 @@ cópia versionada por timestamp é salva em `models/history/`.
 ### Subir o ambiente
 
 ```bash
-docker compose up -d --build
+make dev-airflow
+# equivalente a: docker compose -f docker-compose.airflow.yml up -d --build
 ```
 
 Isso builda a imagem `Dockerfile.airflow` (Airflow + dependências do
@@ -152,7 +148,8 @@ Pela interface: localize `train_pipeline` na lista de DAGs, ative o toggle
 (unpause) e clique em **Trigger DAG** (▶). Ou via linha de comando:
 
 ```bash
-docker compose exec airflow-webserver airflow dags trigger train_pipeline
+docker compose -f docker-compose.airflow.yml exec airflow-webserver \
+  airflow dags trigger train_pipeline
 ```
 
 Acompanhe o progresso na visão **Graph** ou **Grid** da DAG. Os logs de
@@ -180,13 +177,10 @@ versões de `requirements.txt`.
 ### Encerrar o ambiente
 
 ```bash
-docker compose down
-```
+docker compose -f docker-compose.airflow.yml down
 
-Para remover também o volume do Postgres (reset completo do metastore):
-
-```bash
-docker compose down -v
+# reset completo do metastore (remove o volume do Postgres)
+docker compose -f docker-compose.airflow.yml down -v
 ```
 
 ## API de inferência (Etapa 2)

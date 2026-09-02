@@ -11,3 +11,4 @@ alternativas consideradas e as consequências aceitas.
 | [0003](0003-artefato-de-modelo-no-ci.md) | Artefato de modelo no CI via dummy training | Aceito |
 | [0004](0004-instrumentacao-e-contrato-de-metricas.md) | Instrumentação e contrato de métricas | Aceito |
 | [0005](0005-stack-de-monitoramento-como-codigo.md) | Stack de monitoramento como código | Aceito |
+| [0008](0008-piso-unico-de-python.md) | Piso único de Python 3.12 | Aceito |
