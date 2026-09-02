@@ -45,6 +45,14 @@ requirements-dev.txt  # requirements.txt + pytest (uso local)
 
 Pré-requisitos: Python 3.10+.
 
+> Confirme a versão antes de criar a venv (`python3 --version`): em alguns
+> sistemas o `python3` padrão do `PATH` é mais antigo (ex.: 3.9). Com uma
+> versão abaixo de 3.10 os testes falham com erros obscuros como
+> `TypeError: zip() takes no keyword arguments` (o parâmetro `strict=` do
+> `zip()` só existe a partir do 3.10) — use `python3.10`/`python3.11`/
+> `python3.12`/`python3.13` (ou o binário equivalente do seu sistema)
+> explicitamente se necessário.
+
 ```bash
 python -m venv .venv
 # Windows

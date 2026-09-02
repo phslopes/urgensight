@@ -1,3 +1,10 @@
+# Nome de projeto explicito: isola a rede desta stack da stack de
+# monitoramento (docker-compose.yml), que roda na mesma pasta. Sem isso, as
+# duas resolveriam para o mesmo nome de projeto padrao e disputariam a
+# mesma rede (urgensight_default), causando "network still in use" ao
+# encerrar uma com a outra no ar.
+name: urgensight-airflow
+
 x-airflow-common: &airflow-common
   build:
     context: .

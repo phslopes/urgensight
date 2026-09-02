@@ -3,6 +3,13 @@
 #
 # Pre-requisito: models/model.pkl deve existir. Use `make dev`, que garante
 # isso automaticamente, em vez de `docker compose up` direto.
+#
+# Nome de projeto explicito: sem isso, os dois compose files desta pasta
+# resolveriam para o mesmo nome de projeto ("urgensight", derivado do
+# diretorio) e disputariam a mesma rede padrao (urgensight_default),
+# causando "network still in use" ao encerrar um com o outro no ar.
+name: urgensight-monitoring
+
 services:
   api:
     build:

@@ -7,3 +7,11 @@ pytest>=8.0
 # uv/pip -e instalavam a partir de la; o CI instala so a partir dos
 # requirements*.txt e expunha o ImportError.
 httpx>=0.28
+# make lint e make test-cov (README, secao "Testes e Lint") dependem destes
+# dois pacotes. Faltavam aqui: pyproject.toml ja os declara em
+# [project.optional-dependencies].dev, mas o README instrui apenas
+# `pip install -r requirements-dev.txt`, sem o extra do pyproject -- sem
+# isso, `make lint`/`make test-cov` falhavam em qualquer ambiente instalado
+# ao pe da letra pelo README (confirmado em venv limpa).
+ruff>=0.6.0
+pytest-cov>=5.0.0
