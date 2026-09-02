@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ACTION="${1:-pull}"
-PROJECT_MEMORY_DIR="$HOME/.openclaude/projects/-Users-eduardobatista-Code-urgensight/memory/team"
+PROJECT_MEMORY_DIR="$HOME/.claude/projects/-Users-eduardobatista-Code-urgensight/memory/team"
 LOCAL_MEMORY_DIR=".claude/memory/team"
 
 mkdir -p "$LOCAL_MEMORY_DIR"
