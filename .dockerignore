@@ -1,5 +1,5 @@
 # Reduz o contexto de build enviado ao daemon Docker.
-# O Dockerfile copia apenas src/, requirements.txt e models/model.pkl,
+# O Dockerfile copia apenas src/, pyproject.toml, uv.lock e models/model.pkl,
 # mas sem .dockerignore o client envia tudo (incluindo .venv/, data/ e
 # logs), tornando o build lento e instavel.
 

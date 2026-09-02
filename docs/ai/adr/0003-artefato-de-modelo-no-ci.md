@@ -48,3 +48,12 @@ não determinístico.
   modelo continua sendo aferida por `tests/test_model_loading.py` contra o modelo real.
 - O fixture precisa ser regenerado se o esquema de `data/processed/train.csv` mudar;
   `tests/test_sample_fixture.py` faz essa falha aparecer localmente.
+
+> **Atualização (2026-09-02, [ADR-0007](0007-uv-com-lock-unico.md)):** o job
+> `smoke-train` passou a instalar dependências com `uv sync --frozen
+> --no-default-groups --group pipeline` em vez de `pip install -r
+> requirements.txt`. Como `pandas`, `numpy` e `scikit-learn` já estão em
+> `[project.dependencies]` (ver ADR-0007), esse `--group pipeline` hoje só
+> acrescenta `dvc`, que o `smoke-train` nem usa — pequena ineficiência aceita.
+> A decisão registrada aqui — dummy training sobre fixture versionado, sem
+> rede — permanece em vigor.

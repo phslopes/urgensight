@@ -156,7 +156,7 @@ e a aplicação reiniciada.
 
 ```json
 {
-  "detail": "Modelo de ML indisponivel. Verifique se models/model.pkl existe e e compativel com as versoes de requirements.txt."
+  "detail": "Modelo de ML indisponivel. Verifique se models/model.pkl existe e e compativel com as versoes de pyproject.toml/uv.lock."
 }
 ```
 

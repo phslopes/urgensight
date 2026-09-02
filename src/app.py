@@ -139,7 +139,7 @@ def _require_model():
             detail=(
                 "Modelo de ML indisponivel. "
                 "Verifique se models/model.pkl existe e e compativel "
-                "com as versoes de requirements.txt."
+                "com as versoes de pyproject.toml/uv.lock."
             ),
         )
     return model_pipeline

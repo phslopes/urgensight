@@ -16,7 +16,7 @@ O UrgenSight é um sistema inteligente de triagem de laudos médicos hospitalare
 - **API**: Servida via FastAPI (`src/app.py`). O modelo é carregado no evento `lifespan`. Endpoints: `GET /health` e `POST /predict`.
 - **Pipeline de Treino**: `src/prepare_dataset.py` e `src/train.py`.
 - **DAG Airflow**: `dags/train_pipeline.py` orquestra retreino garantindo idempotência e versionamento em `models/history/`.
-- **Compatibilidade de Pickle**: `scikit-learn==1.5.1` e `dill` fixados em `requirements.txt`.
+- **Compatibilidade de Pickle**: `scikit-learn==1.5.1`, `numpy==1.26.4` e `dill` fixados em `pyproject.toml`/`uv.lock`.
 
 ## graphify
 

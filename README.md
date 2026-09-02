@@ -40,32 +40,39 @@ docker-compose.yml         # stack de monitoramento (API + Prometheus + Grafana)
 docker-compose.airflow.yml # ambiente local do Airflow (Postgres + webserver + scheduler)
 Dockerfile                 # imagem da API de inferencia
 Dockerfile.airflow         # imagem do Airflow (nao e a imagem da API)
-requirements.txt      # dependências de runtime (também instaladas na imagem do Airflow)
-requirements-dev.txt  # requirements.txt + pytest (uso local)
+pyproject.toml         # dependencias, grupos e configuracao de ruff/pytest
+uv.lock                # versoes exatas (fonte de verdade)
 ```
 
 ## Instalação
 
-Pré-requisitos: Python 3.12+ (o arquivo `.python-version` fixa `3.12`).
+Pré-requisitos: Python 3.12+ e [uv](https://docs.astral.sh/uv/) (o arquivo
+`.python-version` fixa `3.12`; ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-source .venv/bin/activate
+# instalar o uv (uma vez)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-pip install -r requirements-dev.txt
+# criar o ambiente e instalar tudo (dev + pipeline)
+uv sync
 ```
 
-`requirements.txt` contém só as dependências de runtime (usadas também
-dentro da imagem do Airflow); `requirements-dev.txt` adiciona o `pytest`
-para rodar os testes localmente.
+`uv sync` lê `pyproject.toml` e `uv.lock`, cria o `.venv` e instala as
+versões exatas do lock. Não é necessário ativar o ambiente: `uv run <comando>`
+e os alvos do `Makefile` já executam dentro dele.
+
+O projeto declara três conjuntos de dependências:
+
+| Conjunto | Conteúdo | Instalação |
+|---|---|---|
+| `[project.dependencies]` | runtime da API (inclui `pandas`/`requests` — cadeia de imports `src.app -> src.train -> src.prepare_dataset`, ver ADR-0007) | `uv sync --no-default-groups` |
+| grupo `pipeline` | `dvc` (uso local: `uv run dvc ...`) | `uv sync --no-default-groups --group pipeline` |
+| grupo `dev` (padrão) | pytest, ruff, httpx + `pipeline` | `uv sync` |
 
 ## Rodando os testes
 
 ```bash
-pytest -q
+make test
 ```
 
 ## Preparando o dataset (Etapa 1.1)
@@ -166,13 +173,14 @@ O `apache-airflow` traz `dill` como dependência transitiva, e isso faz o
 `pickle` do Python usar handlers do `dill` para alguns objetos durante o
 `joblib.dump` — ou seja, um `model.pkl` treinado **dentro do container**
 Airflow só recarrega em outro ambiente se esse ambiente também tiver
-`dill` instalado. Por isso `dill` está declarado em `requirements.txt`
-(runtime, não só dev) e o `scikit-learn` está fixado em `==1.5.1` (tanto
-localmente quanto na imagem do Airflow), evitando o
-`InconsistentVersionWarning` do scikit-learn ao desserializar um modelo
-treinado em outra versão. Qualquer ambiente que for carregar
-`models/model.pkl` (ex.: a API da Etapa 2) deve instalar as mesmas
-versões de `requirements.txt`.
+`dill` instalado. Por isso `dill` está declarado em `[project.dependencies]`
+(runtime, não só dev), o `scikit-learn` está fixado em `==1.5.1` (evitando o
+`InconsistentVersionWarning` ao desserializar um modelo treinado em outra
+versão) e o `numpy` está fixado em `==1.26.4` — mesma versão das constraints
+oficiais do Airflow, que é o ambiente menos flexível dos dois. Qualquer
+ambiente que for carregar `models/model.pkl` (ex.: a API da Etapa 2) deve
+instalar as mesmas versões declaradas em `pyproject.toml` e fixadas em
+`uv.lock` (ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ### Encerrar o ambiente
 
@@ -206,7 +214,8 @@ O `Dockerfile` da API executa os seguintes passos:
 
 1. Parte de `python:3.12-slim` (mesmo major/minor usado no ambiente de dev,
    garantindo compatibilidade com o pickle do modelo).
-2. Instala `requirements.txt` em uma camada própria (otimiza cache de build).
+2. Instala as dependências de runtime com `uv sync --frozen
+   --no-default-groups` em uma camada própria (otimiza cache de build).
 3. Copia `src/` e o artefato `models/model.pkl`.
 4. Executa como usuário não-root (`appuser`).
 5. Expõe a porta `8000` e sobe o Uvicorn em `src.app:app`.
