@@ -14,10 +14,16 @@ RUN groupadd --gid 1000 appuser \
 
 WORKDIR /app
 
-# Dependencias primeiro: aproveita o cache de camadas do Docker (o layer de
-# dependencias so e refeito quando requirements.txt muda).
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# uv: instalador unico do projeto (ver ADR-0007). Versao fixada para que o
+# build seja reproduzivel.
+COPY --from=ghcr.io/astral-sh/uv:0.11.1 /uv /bin/uv
+
+# Dependencias primeiro: aproveita o cache de camadas (o layer so e refeito
+# quando pyproject.toml ou uv.lock mudam). --no-default-groups exclui dev e
+# pipeline: a API nao usa pandas, requests, pytest nem dvc.
+COPY pyproject.toml uv.lock ./
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
+RUN uv sync --frozen --no-default-groups --no-cache
 
 # Codigo-fonte e artefato do modelo (gerado por src/train.py ou pela DAG).
 COPY src/ ./src/

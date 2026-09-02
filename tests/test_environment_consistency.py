@@ -84,15 +84,35 @@ class TestDependencyGroups:
         deps = read_pyproject()["project"]["dependencies"]
         assert f"numpy=={AIRFLOW_PINNED['numpy']}" in deps
 
-    def test_pandas_is_pinned_to_airflow_version_in_pipeline_group(self):
-        pipeline = read_pyproject()["dependency-groups"]["pipeline"]
-        assert f"pandas=={AIRFLOW_PINNED['pandas']}" in pipeline
+    def test_pandas_is_pinned_to_airflow_version(self):
+        """pandas mora em [project.dependencies], nao no grupo pipeline.
 
-    def test_api_runtime_excludes_pipeline_only_packages(self):
-        """src/app.py nao importa pandas nem requests: eles nao vao para a imagem."""
-        deps = " ".join(read_pyproject()["project"]["dependencies"])
-        assert "pandas" not in deps
-        assert "requests" not in deps
+        Risco R2 (ADR-0007): a API desserializa models/model.pkl via
+        src/train.py:load_pipeline, que importa pandas no module-level.
+        Sem pandas no runtime, o build sobe mas /health responde 503
+        (ModuleNotFoundError). Confirmado localmente ao validar o build
+        Docker da API nesta tarefa -- por isso pandas ficou fora do grupo
+        pipeline-only e foi promovido a dependencia direta do projeto.
+        """
+        deps = read_pyproject()["project"]["dependencies"]
+        assert f"pandas=={AIRFLOW_PINNED['pandas']}" in deps
+
+    def test_api_runtime_needs_requests_transitively(self):
+        """requests tambem precisou virar dependencia direta da API.
+
+        Isto vai alem do risco R2 descrito originalmente (que citava so
+        pandas): src.train importa src.prepare_dataset no module-level (para
+        as constantes TARGET_COLUMN/TEXT_COLUMN/VALID_TARGETS), e
+        prepare_dataset.py importa requests no module-level (para baixar o
+        dataset bruto) -- mesmo a API nunca chamando essa funcionalidade.
+        Confirmado localmente: com requests so no grupo pipeline, o build
+        da API sobe mas /health responde 503 (ModuleNotFoundError: requests).
+        Ver task-5-report.md para o diagnostico completo e a nota na ADR-0007
+        sobre a correcao definitiva (desacoplar essas constantes) ficar fora
+        do escopo desta tarefa.
+        """
+        deps = read_pyproject()["project"]["dependencies"]
+        assert any(dep.startswith("requests") for dep in deps)
 
     def test_dvc_is_not_a_runtime_dependency(self):
         deps = " ".join(read_pyproject()["project"]["dependencies"])
@@ -105,3 +125,29 @@ class TestLockfileMatchesPins:
         lock = read_text("uv.lock")
         for package, version in AIRFLOW_PINNED.items():
             assert f'name = "{package}"\nversion = "{version}"' in lock
+
+
+class TestSingleSourceOfDependencies:
+    def test_requirements_files_are_gone(self):
+        """Arquivo commitado que ninguem edita a mao vira arquivo desatualizado."""
+        assert not (PROJECT_ROOT / "requirements.txt").exists()
+        assert not (PROJECT_ROOT / "requirements-dev.txt").exists()
+
+    def test_ci_installs_with_uv(self):
+        ci = read_text(".github/workflows/ci.yml")
+        assert "astral-sh/setup-uv" in ci
+        assert "pip install" not in ci
+
+    def test_api_dockerfile_installs_with_uv(self):
+        dockerfile = read_text("Dockerfile")
+        assert "uv sync --frozen --no-default-groups" in dockerfile
+        assert "pip install" not in dockerfile
+
+    def test_airflow_dockerfile_installs_pipeline_group(self):
+        dockerfile = read_text("Dockerfile.airflow")
+        assert "--group pipeline" in dockerfile
+
+    def test_makefile_requires_uv_without_fallback(self):
+        makefile = read_text("Makefile")
+        assert "uv run python" in makefile
+        assert "python3" not in makefile

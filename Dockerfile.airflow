@@ -3,12 +3,25 @@
 # o nome dedicado Dockerfile.airflow.
 FROM apache/airflow:2.9.3-python3.12
 
-COPY requirements.txt /requirements.txt
+COPY --from=ghcr.io/astral-sh/uv:0.11.1 /uv /bin/uv
 
-# Instala as dependencias do projeto (pandas, scikit-learn, etc.) usando as
-# constraints oficiais do Airflow para essa versao, evitando que alguma
-# versao de dependencia transitiva quebre o proprio Airflow.
-RUN pip install --no-cache-dir -r /requirements.txt \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt"
+COPY pyproject.toml uv.lock /opt/urgensight/
+
+# O lock e a fonte de verdade das versoes; as constraints oficiais do Airflow
+# continuam protegendo as dependencias transitivas do proprio Airflow (elas
+# nao listam scipy, scikit-learn nem joblib -- esses vem do lock).
+#
+# Caminho absoluto /bin/uv (em vez de so "uv"): a imagem oficial do Airflow
+# ja traz um uv 0.2.31 via pip em /home/airflow/.local/bin, que vem antes de
+# /bin no PATH do usuario airflow. Chamar "uv" sem qualificar resolveria
+# para essa versao antiga (sem o subcomando "export") em vez da 0.11.1
+# copiada acima -- descoberto ao validar este build.
+RUN /bin/uv export --frozen --no-default-groups --group pipeline \
+        --no-emit-project --project /opt/urgensight \
+        -o /tmp/requirements-pipeline.txt \
+    && /bin/uv pip install --no-cache \
+        --python "$(command -v python)" \
+        -r /tmp/requirements-pipeline.txt \
+        --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt"
 
 ENV PYTHONPATH="/opt/airflow/project:${PYTHONPATH}"

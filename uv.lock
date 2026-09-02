@@ -2399,8 +2399,10 @@ dependencies = [
     { name = "fastapi" },
     { name = "joblib" },
     { name = "numpy" },
+    { name = "pandas" },
     { name = "prometheus-client" },
     { name = "pydantic" },
+    { name = "requests" },
     { name = "scikit-learn" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -2409,17 +2411,13 @@ dependencies = [
 dev = [
     { name = "dvc" },
     { name = "httpx" },
-    { name = "pandas" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
-    { name = "requests" },
     { name = "ruff" },
 ]
 pipeline = [
     { name = "dvc" },
-    { name = "pandas" },
-    { name = "requests" },
 ]
 
 [package.metadata]
@@ -2428,8 +2426,10 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "joblib", specifier = ">=1.4.0" },
     { name = "numpy", specifier = "==1.26.4" },
+    { name = "pandas", specifier = "==2.1.4" },
     { name = "prometheus-client", specifier = ">=0.20" },
     { name = "pydantic", specifier = ">=2.8.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "scikit-learn", specifier = "==1.5.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
@@ -2438,18 +2438,12 @@ requires-dist = [
 dev = [
     { name = "dvc", specifier = ">=3.67" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "pandas", specifier = "==2.1.4" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", specifier = ">=0.23.0" },
     { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", specifier = ">=0.6.0" },
 ]
-pipeline = [
-    { name = "dvc", specifier = ">=3.67" },
-    { name = "pandas", specifier = "==2.1.4" },
-    { name = "requests", specifier = ">=2.31.0" },
-]
+pipeline = [{ name = "dvc", specifier = ">=3.67" }]
 
 [[package]]
 name = "urllib3"
