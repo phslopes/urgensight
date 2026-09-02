@@ -73,9 +73,9 @@ def main(argv=None) -> None:
         else:
             payload = {"text": random.choice(texts)}
 
+        sent += 1
         try:
             response = requests.post(args.url, json=payload, timeout=5)
-            sent += 1
             if response.status_code == 200:
                 ok += 1
             else:
