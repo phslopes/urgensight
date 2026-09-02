@@ -73,3 +73,11 @@ pythonpath = ["src", "."]
 # um ambiente a sincronizar. uv.lock ja registra source = { virtual = "." };
 # esta chave torna isso explicito e estavel entre versoes do uv.
 package = false
+# dvc nao fixa aiohttp/yarl -- eles chegam transitivos via dvc-http/scmrepo
+# -> aiohttp-retry -> aiohttp -> yarl. Sem pin, `uv lock` escolhe as versoes
+# mais recentes, que conflitam com o pin oficial das constraints do Airflow
+# (aiohttp==3.9.5 / yarl==1.9.4) e quebram o build de Dockerfile.airflow com
+# um "pin duplo" (--constraint por cima de um uv export ja resolvido para
+# outra versao). Fixar aqui faz o uv.lock nascer compativel com o Airflow
+# (ver ADR-0007).
+constraint-dependencies = ["aiohttp==3.9.5", "yarl==1.9.4"]
