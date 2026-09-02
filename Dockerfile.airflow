@@ -5,23 +5,47 @@ FROM apache/airflow:2.9.3-python3.12
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.1 /uv /bin/uv
 
-COPY pyproject.toml uv.lock /opt/urgensight/
-
-# O lock e a fonte de verdade das versoes; as constraints oficiais do Airflow
-# continuam protegendo as dependencias transitivas do proprio Airflow (elas
-# nao listam scipy, scikit-learn nem joblib -- esses vem do lock).
-#
 # Caminho absoluto /bin/uv (em vez de so "uv"): a imagem oficial do Airflow
 # ja traz um uv 0.2.31 via pip em /home/airflow/.local/bin, que vem antes de
 # /bin no PATH do usuario airflow. Chamar "uv" sem qualificar resolveria
-# para essa versao antiga (sem o subcomando "export") em vez da 0.11.1
-# copiada acima -- descoberto ao validar este build.
-RUN /bin/uv export --frozen --no-default-groups --group pipeline \
-        --no-emit-project --project /opt/urgensight \
-        -o /tmp/requirements-pipeline.txt \
-    && /bin/uv pip install --no-cache \
+# para essa versao antiga em vez da 0.11.1 copiada acima -- descoberto ao
+# validar este build.
+#
+# Por que nao "uv export --frozen" + "--constraint" (tentativa anterior):
+# uv export materializa o uv.lock como pins EXATOS ("=="). As constraints
+# oficiais do Airflow tambem sao pins EXATOS. Duas exigencias "==" para o
+# mesmo pacote, vindas de fontes diferentes, so coexistem se forem
+# identicas por acaso -- qualquer divergencia (yarl, wcwidth, urllib3, ...)
+# e um conflito estrutural, nao um pin que falte adicionar. Isso foi
+# confirmado testando as dependencias base do projeto (sem dvc) exportadas
+# do lock contra as constraints do Airflow: conflitam em urllib3 mesmo sem
+# dvc na equacao -- o mecanismo de export e o problema, nao um pacote
+# especifico.
+#
+# A correcao e instalar as dependencias base via especificadores SOLTOS
+# (copiados de [project.dependencies] no pyproject.toml, nao exportados do
+# lock): sem um pin exato do nosso lado para colidir, o resolvedor aceita
+# os pins do Airflow (--constraint) para tudo que nao esta listado aqui,
+# e usa nossos pins exatos (numpy/pandas/scikit-learn) so onde exigimos.
+# Isso restaura o comportamento do antigo "pip install -r requirements.txt
+# --constraint ...": resolucao flexivel, constraints como teto, nao como
+# empate forcado.
+RUN /bin/uv pip install --no-cache \
         --python "$(command -v python)" \
-        -r /tmp/requirements-pipeline.txt \
-        --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt"
+        --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt" \
+        "fastapi>=0.115.0" "uvicorn[standard]>=0.30.0" "pydantic>=2.8.0" \
+        "prometheus-client>=0.20" "scikit-learn==1.5.1" "joblib>=1.4.0" \
+        "numpy==1.26.4" "pandas==2.1.4" "requests>=2.31.0" "dill>=0.3.8"
+
+# dvc entra isolado, via "uv tool install": esse comando cria um ambiente
+# proprio do uv (nao compartilha site-packages com o Python do Airflow),
+# entao as constraints do Airflow nunca chegam a ser aplicadas a fsspec e
+# as outras transitivas de dvc. E o mesmo achado do bloco acima levado ao
+# extremo: fora do mecanismo de pin-duplo, o conflito deixa de existir por
+# construcao. O binario fica em /home/airflow/.local/bin, que ja vem antes
+# de /bin/usr/local/bin no PATH do usuario airflow (mesma ordem que exige
+# o /bin/uv qualificado acima) -- confirmado nesta tarefa.
+RUN /bin/uv tool install "dvc>=3.67" \
+    && command -v dvc
 
 ENV PYTHONPATH="/opt/airflow/project:${PYTHONPATH}"

@@ -143,9 +143,17 @@ class TestSingleSourceOfDependencies:
         assert "uv sync --frozen --no-default-groups" in dockerfile
         assert "pip install" not in dockerfile
 
-    def test_airflow_dockerfile_installs_pipeline_group(self):
+    def test_airflow_dockerfile_installs_base_deps_and_isolates_dvc(self):
+        """uv export gera pins exatos que colidem com qualquer divergencia das
+        constraints do Airflow (achado do fix round 2 desta tarefa). A
+        instalacao correta usa especificadores soltos + --constraint para as
+        deps base, e isola dvc num ambiente proprio via `uv tool install`
+        para nao herdar essas constraints."""
         dockerfile = read_text("Dockerfile.airflow")
-        assert "--group pipeline" in dockerfile
+        assert "uv pip install" in dockerfile
+        assert "constraints-2.9.3/constraints-3.12.txt" in dockerfile
+        assert '--group pipeline' not in dockerfile
+        assert 'uv tool install "dvc' in dockerfile
 
     def test_makefile_requires_uv_without_fallback(self):
         makefile = read_text("Makefile")
