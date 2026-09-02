@@ -199,3 +199,47 @@ class TestDvcPipeline:
 
     def test_dvcstore_is_gitignored(self):
         assert ".dvcstore/" in read_text(".gitignore")
+
+
+class TestDvcLockIsInSync:
+    """O erro humano mais provavel: editar params.yaml e esquecer do lock.
+
+    dvc.lock registra, por estagio, os valores de params que produziram
+    aquele output. Se divergirem de params.yaml, o lock commitado descreve
+    um modelo que ninguem consegue reproduzir.
+    """
+
+    def _yaml(self, relative_path: str) -> dict:
+        import yaml
+
+        return yaml.safe_load(read_text(relative_path))
+
+    def test_lock_exists(self):
+        assert (PROJECT_ROOT / "dvc.lock").exists(), (
+            "dvc.lock ausente: rode `uv run dvc repro` e commite o resultado"
+        )
+
+    def test_lock_covers_every_declared_stage(self):
+        declared = set(self._yaml("dvc.yaml")["stages"])
+        locked = set(self._yaml("dvc.lock")["stages"])
+        assert declared == locked
+
+    def test_locked_params_match_params_yaml(self):
+        params = self._yaml("params.yaml")
+        for stage_name, stage in self._yaml("dvc.lock")["stages"].items():
+            locked = stage.get("params", {}).get("params.yaml", {})
+            for section, values in locked.items():
+                assert values == params[section], (
+                    f"estagio '{stage_name}': params.yaml mudou sem relock. "
+                    "Rode `uv run dvc repro` e commite o dvc.lock."
+                )
+
+    def test_every_stage_with_params_declares_them_in_dvc_yaml(self):
+        """Um param nao declarado nao entra no hash: mudar nao reexecuta nada."""
+        lock_stages = self._yaml("dvc.lock")["stages"]
+        yaml_stages = self._yaml("dvc.yaml")["stages"]
+        for stage_name, stage in lock_stages.items():
+            if stage.get("params"):
+                assert yaml_stages[stage_name].get("params"), (
+                    f"estagio '{stage_name}' usa params sem declara-los em dvc.yaml"
+                )
