@@ -23,6 +23,13 @@ data/processed/*
 # Models extras e historico (a imagem congela apenas models/model.pkl)
 models/history/
 
+# DVC (a imagem da API recebe o model.pkl pronto, nao reproduz o pipeline)
+.dvcstore/
+.dvc/
+dvc.yaml
+dvc.lock
+params.yaml
+
 # Airflow (docker-compose.yml)
 airflow_logs/
 Dockerfile.airflow

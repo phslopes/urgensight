@@ -159,3 +159,43 @@ class TestSingleSourceOfDependencies:
         makefile = read_text("Makefile")
         assert "uv run python" in makefile
         assert "python3" not in makefile
+
+
+class TestDvcPipeline:
+    """O params.yaml e a fonte unica dos hiperparametros (ADR-0006).
+
+    Antes do DVC, seed e max_features viviam duplicados em src/train.py
+    (argparse), dags/train_pipeline.py (hardcoded) e ci.yml.
+    """
+
+    def _params(self) -> dict:
+        import yaml
+
+        return yaml.safe_load(read_text("params.yaml"))
+
+    def _dvc_yaml(self) -> dict:
+        import yaml
+
+        return yaml.safe_load(read_text("dvc.yaml"))
+
+    def test_params_declares_prepare_and_train(self):
+        params = self._params()
+        assert set(params["prepare"]) == {"seed", "test_size", "benchmark_per_class"}
+        assert set(params["train"]) == {"model", "seed", "max_features"}
+
+    def test_pipeline_has_three_stages_in_order(self):
+        assert list(self._dvc_yaml()["stages"]) == ["download", "prepare", "train"]
+
+    def test_each_stage_declares_its_params(self):
+        stages = self._dvc_yaml()["stages"]
+        assert stages["prepare"]["params"] == ["prepare"]
+        assert stages["train"]["params"] == ["train"]
+
+    def test_dag_does_not_hardcode_hyperparameters(self):
+        """A DAG delega ao DVC; nao pode reintroduzir seed/modelo literais."""
+        dag = read_text("dags/train_pipeline.py")
+        assert "seed = 42" not in dag
+        assert 'model_name="logreg"' not in dag
+
+    def test_dvcstore_is_gitignored(self):
+        assert ".dvcstore/" in read_text(".gitignore")

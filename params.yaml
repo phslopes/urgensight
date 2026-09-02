@@ -1,0 +1,16 @@
+# Fonte unica dos hiperparametros do pipeline (ADR-0006).
+# O dvc.yaml declara quais campos cada estagio consome; mudar um valor aqui
+# invalida somente os estagios que dependem dele.
+#
+# Para uma variacao pontual sem editar este arquivo:
+#   dvc exp run -S train.max_features=500
+
+prepare:
+  seed: 42
+  test_size: 0.2
+  benchmark_per_class: 15
+
+train:
+  model: logreg
+  seed: 42
+  max_features: 20000

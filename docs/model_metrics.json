@@ -1,0 +1,10 @@
+{
+  "model": "logreg",
+  "seed": 42,
+  "accuracy": 0.7685,
+  "macro_f1": 0.7718,
+  "weighted_f1": 0.7675,
+  "f1_atencao": 0.7852,
+  "f1_normal": 0.7397,
+  "f1_urgente": 0.7905
+}

@@ -1,0 +1,44 @@
+stages:
+  download:
+    cmd: python -m src.prepare_dataset --download-only --data-dir data
+    deps:
+      - src/prepare_dataset.py
+    outs:
+      - data/raw
+
+  prepare:
+    cmd: >-
+      python -m src.prepare_dataset --skip-download --data-dir data
+      --seed ${prepare.seed}
+      --test-size ${prepare.test_size}
+      --benchmark-per-class ${prepare.benchmark_per_class}
+    deps:
+      - src/prepare_dataset.py
+      - data/raw
+    params:
+      - prepare
+    outs:
+      - data/processed
+      - data/benchmark_samples.json:
+          cache: false
+      - docs/dataset_distribution.md:
+          cache: false
+
+  train:
+    cmd: >-
+      python -m src.train --model ${train.model}
+      --seed ${train.seed}
+      --max-features ${train.max_features}
+    deps:
+      - src/train.py
+      - src/prepare_dataset.py
+      - data/processed
+    params:
+      - train
+    outs:
+      - models/model.pkl
+      - docs/model_metrics.md:
+          cache: false
+    metrics:
+      - docs/model_metrics.json:
+          cache: false
