@@ -101,7 +101,7 @@ mas não com quais dados, código ou hiperparâmetros.
 | Q5 | uv | Substitui o pip em **todas** as etapas, com grupos PEP 735 |
 | Q6/Q7 | Python | Piso 3.12 em todo o projeto, incluindo Airflow (`2.9.3-python3.12`), com portão de validação |
 | Q8 | Stages | Três: `download` → `prepare` → `train` |
-| Q9 | DVC no CI | CI não roda `dvc repro`; ganha job barato de consistência estrutural |
+| Q9 | DVC no CI | CI não roda `dvc repro`; consistência do lock verificada por teste da suíte (ver §6, R5) |
 | Q10 | Métricas | `src/train.py` passa a emitir **também** `docs/model_metrics.json` |
 | Q11 | Sequência | Tudo na Etapa 3, com gate de aborto para o DVC |
 | Q12 | ADRs | Três: 0006 (DVC), 0007 (uv), 0008 (Python 3.12) |
@@ -325,7 +325,7 @@ ambos).
 | `src/prepare_dataset.py` | Flags `--download-only` / `--skip-download` (D1) |
 | `src/train.py` | Emite `docs/model_metrics.json` além do `.md` (D3) |
 | `dags/train_pipeline.py` | Corpo das tasks chama `dvc repro` (§4.6) |
-| `.github/workflows/ci.yml` | Job `dvc-check` (consistência estrutural) |
+| `tests/test_environment_consistency.py` | Classe comparando os params gravados em `dvc.lock` com `params.yaml` |
 | `.gitignore`, `.dockerignore` | `.dvcstore/`, `/.dvc/cache` (D4) |
 | `tests/test_prepare_dataset.py`, `tests/test_train.py` | Cobertura das flags novas e do JSON de métricas |
 
@@ -339,7 +339,7 @@ ambos).
 | R2 | API sem `pandas` falha ao desserializar o pickle | `tests/test_model_loading.py` + `HEALTHCHECK` (`Dockerfile:33-35`) falham o container. Se ocorrer, `pandas` volta ao runtime e vira consequência na ADR-0007 |
 | R3 | `pandas 2.1.4` / `numpy 1.26.4` são versões antigas | Aceito conscientemente: é o preço de um único ambiente resolvido |
 | R4 | DVC dentro do Airflow onera a DAG já entregue | Gate de aborto abaixo |
-| R5 | Job `dvc-check` sem comando limpo para validar sem dados em cache | A verificar na implementação; se não houver, o job é descartado e fica só o Q9(a) |
+| R5 | Job `dvc-check` sem comando limpo para validar sem dados em cache | **Resolvido durante o planejamento:** não existe comando limpo (`dvc status` compara hashes de dependências ausentes), mas o `dvc.lock` grava os valores de params de cada estágio. A checagem virou teste de suíte por parsing de YAML — sem rede, sem cache, sem `dvc` no runner, e sem job novo no CI |
 
 ### 6.1. Gate de aborto do DVC (Q16 = A + C)
 
