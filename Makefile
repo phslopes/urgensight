@@ -1,15 +1,12 @@
 .PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down
 
-UV ?= $(shell which uv 2>/dev/null)
-ifeq ($(strip $(VIRTUAL_ENV)),)
-  ifneq ($(strip $(UV)),)
-    PYTHON ?= uv run python
-  else
-    PYTHON ?= python3
-  endif
-else
-  PYTHON ?= python
+# uv e obrigatorio (ADR-0007): o fallback anterior para o interpretador do
+# sistema permitia que cada integrante rodasse num ambiente diferente.
+UV := $(shell command -v uv 2>/dev/null)
+ifeq ($(strip $(UV)),)
+  $(error uv nao encontrado no PATH. Instale com: curl -LsSf https://astral.sh/uv/install.sh | sh)
 endif
+PYTHON := uv run python
 
 help:
 	@echo "UrgenSight - Harness de Desenvolvimento"

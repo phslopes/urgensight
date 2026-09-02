@@ -53,11 +53,15 @@ CONDITION_TO_URGENCY = {
 VALID_TARGETS = {"normal", "atencao", "urgente"}
 
 
+def _raw_file_paths(raw_dir: Path) -> tuple[Path, Path]:
+    """Caminhos padronizados dos CSVs brutos de treino/teste em raw_dir."""
+    return raw_dir / "medical_tc_train.csv", raw_dir / "medical_tc_test.csv"
+
+
 def download_raw_data(dest_dir: Path, force: bool = False) -> tuple[Path, Path]:
     """Baixa os CSVs de treino/teste originais do corpus para dest_dir."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    train_path = dest_dir / "medical_tc_train.csv"
-    test_path = dest_dir / "medical_tc_test.csv"
+    train_path, test_path = _raw_file_paths(dest_dir)
 
     for url, path in ((RAW_TRAIN_URL, train_path), (RAW_TEST_URL, test_path)):
         if path.exists() and not force:
@@ -172,6 +176,13 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--benchmark-per-class", type=int, default=15)
     parser.add_argument("--force-download", action="store_true")
+
+    # Flags de estagio: o pipeline DVC separa o download (dependente de rede)
+    # do processamento (deterministico), para que mudar um parametro de split
+    # nao rebaixe os 17 MB de data/raw. Ver dvc.yaml.
+    stage_group = parser.add_mutually_exclusive_group()
+    stage_group.add_argument("--download-only", action="store_true")
+    stage_group.add_argument("--skip-download", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -180,10 +191,24 @@ def main(argv=None) -> None:
 
     raw_dir = args.data_dir / "raw"
     processed_dir = args.data_dir / "processed"
-    processed_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Baixando dataset bruto em {raw_dir} ...")
-    train_path, test_path = download_raw_data(raw_dir, force=args.force_download)
+    if args.skip_download:
+        train_path, test_path = _raw_file_paths(raw_dir)
+        for path in (train_path, test_path):
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"Arquivo bruto ausente: {path}. "
+                    "Rode o estagio de download antes (--download-only)."
+                )
+    else:
+        print(f"Baixando dataset bruto em {raw_dir} ...")
+        train_path, test_path = download_raw_data(raw_dir, force=args.force_download)
+
+    if args.download_only:
+        print("Download concluido (--download-only): nada mais a fazer.")
+        return
+
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
     raw_df = load_raw_data(train_path, test_path)
     stats = compute_cleaning_stats(raw_df)

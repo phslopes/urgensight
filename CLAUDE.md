@@ -16,7 +16,7 @@ Always prefer Makefile commands over raw shell commands:
 - **Domain Flow**: Medical report text -> TF-IDF Vectorizer -> Logistic Regression / Linear SVC -> Class (`normal`, `atencao`, `urgente`).
 - **FastAPI Lifespan**: Model loaded once at startup into `app.state.model`. If model is missing, API returns `503 Service Unavailable` with `{"detail": "Modelo de ML indisponivel."}`.
 - **Airflow DAG**: `dags/train_pipeline.py` runs weekly with tasks: `load_and_validate_data -> train_model -> save_model`.
-- **Environment Isolation**: `dill` and `scikit-learn==1.5.1` ensure serialized pickle compatibility between Airflow worker and FastAPI runtime.
+- **Environment Isolation**: `numpy==1.26.4`, `pandas==2.1.4`, `dill`, and `scikit-learn==1.5.1` are pinned in `pyproject.toml`/`uv.lock` (installed via `uv sync`) to ensure serialized pickle compatibility between the Airflow worker and the FastAPI runtime.
 
 ## 🔒 Security & Governance Rules
 

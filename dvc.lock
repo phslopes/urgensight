@@ -1,0 +1,83 @@
+schema: '2.0'
+stages:
+  download:
+    cmd: python -m src.prepare_dataset --download-only --data-dir data
+    deps:
+    - path: src/prepare_dataset.py
+      hash: md5
+      md5: cf3b6f28a2e8a245d9e01d80dbb1b644
+      size: 10669
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 2434664a5ad3e2fecea7d5c538a2471a.dir
+      size: 17841339
+      nfiles: 2
+  prepare:
+    cmd: python -m src.prepare_dataset --skip-download --data-dir data --seed 42
+      --test-size 0.2 --benchmark-per-class 15
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 2434664a5ad3e2fecea7d5c538a2471a.dir
+      size: 17841339
+      nfiles: 2
+    - path: src/prepare_dataset.py
+      hash: md5
+      md5: cf3b6f28a2e8a245d9e01d80dbb1b644
+      size: 10669
+    params:
+      params.yaml:
+        prepare:
+          seed: 42
+          test_size: 0.2
+          benchmark_per_class: 15
+    outs:
+    - path: data/benchmark_samples.json
+      hash: md5
+      md5: 34b0994c65ba9c6fa01b0e5e44f8cad4
+      size: 59900
+    - path: data/processed
+      hash: md5
+      md5: e3fe7e558d6e3178446a81e5b79a7d7b.dir
+      size: 13980182
+      nfiles: 2
+    - path: docs/dataset_distribution.md
+      hash: md5
+      md5: 41acb4584ea174d085309995fc64642d
+      size: 467
+  train:
+    cmd: python -m src.train --model logreg --seed 42 --max-features 20000
+    deps:
+    - path: data/processed
+      hash: md5
+      md5: e3fe7e558d6e3178446a81e5b79a7d7b.dir
+      size: 13980182
+      nfiles: 2
+    - path: src/prepare_dataset.py
+      hash: md5
+      md5: cf3b6f28a2e8a245d9e01d80dbb1b644
+      size: 10669
+    - path: src/train.py
+      hash: md5
+      md5: 22fabe844153377e6d051de43de74630
+      size: 8921
+    params:
+      params.yaml:
+        train:
+          model: logreg
+          seed: 42
+          max_features: 20000
+    outs:
+    - path: docs/model_metrics.json
+      hash: md5
+      md5: eae6650beb3a3e6ab91b8fd7af667e7f
+      size: 178
+    - path: docs/model_metrics.md
+      hash: md5
+      md5: a75a2f7e81e64972ac3023b3253b3983
+      size: 1056
+    - path: models/model.pkl
+      hash: md5
+      md5: edf6e6f2b239f9f0a46d549793ce7abc
+      size: 1309409

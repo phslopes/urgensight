@@ -3,13 +3,17 @@
 Simula um fluxo de retreino agendado com 3 tasks, nessa ordem obrigatoria:
     carregamento/validacao dos dados -> treino -> salvamento do modelo
 
-Reutiliza diretamente as funcoes de src/prepare_dataset.py e src/train.py
-(nenhuma logica de treino e duplicada aqui).
+A DAG orquestra o pipeline do DVC: cada task chama `dvc repro <stage>` (ou
+`dvc push`) via subprocess, preservando os 3 task_id e a ordem acima. A
+logica de dados e treino mora em dvc.yaml, que por sua vez chama
+src/prepare_dataset.py e src/train.py -- esta DAG so importa
+load_dataset/validate_columns de src/train.py para uma validacao leve apos
+o `dvc repro prepare`.
 """
 
 import os
 import shutil
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from airflow.decorators import dag, task
@@ -35,80 +39,78 @@ default_args = {
     tags=["urgensight", "ml", "retrain"],
 )
 def train_pipeline():
+    def _run_dvc(*args: str) -> None:
+        """Executa um comando dvc na raiz do projeto, propagando a falha."""
+        import subprocess
+
+        result = subprocess.run(
+            ["dvc", *args],
+            cwd=PROJECT_DIR,
+            capture_output=True,
+            text=True,
+        )
+        print(result.stdout)
+        if result.returncode != 0:
+            print(result.stderr)
+            raise RuntimeError(
+                f"dvc {' '.join(args)} falhou (codigo {result.returncode})"
+            )
+
     @task
     def load_and_validate_data() -> dict:
-        """Carrega e valida o dataset processado na Etapa 1.1."""
+        """Reproduz o estagio de preparacao (arrasta o download se preciso).
+
+        A validacao de colunas continua sendo feita por src/train.py dentro
+        do estagio; aqui garantimos que data/processed esta atualizado em
+        relacao a data/raw e aos params de prepare.
+        """
+        _run_dvc("repro", "prepare")
+
         from src.train import load_dataset, validate_columns
 
         train_path = DATA_DIR / "processed" / "train.csv"
         test_path = DATA_DIR / "processed" / "test.csv"
+        for path in (train_path, test_path):
+            validate_columns(load_dataset(path))
 
-        train_df = load_dataset(train_path)
-        test_df = load_dataset(test_path)
-        validate_columns(train_df)
-        validate_columns(test_df)
-
-        print(
-            f"Dataset validado: treino={len(train_df)} amostras, teste={len(test_df)} amostras"
-        )
+        print(f"Dataset validado: {train_path.name}, {test_path.name}")
         return {"train_path": str(train_path), "test_path": str(test_path)}
 
     @task
     def train_model(data_info: dict) -> dict:
-        """Treina e avalia o pipeline, reutilizando a logica de src/train.py."""
-        from src.prepare_dataset import TARGET_COLUMN, TEXT_COLUMN
-        from src.train import (
-            build_pipeline,
-            evaluate_pipeline,
-            format_metrics_report,
-            load_dataset,
-            save_pipeline,
-        )
+        """Reproduz o estagio de treino. Hiperparametros vem de params.yaml."""
+        import json
 
-        train_df = load_dataset(Path(data_info["train_path"]))
-        test_df = load_dataset(Path(data_info["test_path"]))
+        _run_dvc("repro", "train")
 
-        seed = 42
-        pipeline = build_pipeline(model_name="logreg", seed=seed)
-        pipeline.fit(train_df[TEXT_COLUMN], train_df[TARGET_COLUMN])
-
-        metrics = evaluate_pipeline(
-            pipeline, test_df[TEXT_COLUMN], test_df[TARGET_COLUMN]
-        )
-        report = format_metrics_report(
-            metrics, config={"model_name": "logreg", "seed": seed}
-        )
-
-        staging_path = MODELS_DIR / "model_staging.pkl"
-        save_pipeline(pipeline, staging_path)
-
-        DOCS_DIR.mkdir(parents=True, exist_ok=True)
-        (DOCS_DIR / "model_metrics.md").write_text(report, encoding="utf-8")
+        metrics_path = DOCS_DIR / "model_metrics.json"
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
 
         print(
-            f"Treino concluido: accuracy={metrics['accuracy']:.4f}, macro_f1={metrics['macro_f1']:.4f}"
+            f"Treino concluido: accuracy={metrics['accuracy']:.4f}, "
+            f"macro_f1={metrics['macro_f1']:.4f}"
         )
         return {
-            "staging_path": str(staging_path),
+            "model_path": str(MODELS_DIR / "model.pkl"),
             "accuracy": metrics["accuracy"],
             "macro_f1": metrics["macro_f1"],
         }
 
     @task
     def save_model(train_result: dict) -> None:
-        """Promove o modelo treinado para models/model.pkl e guarda um historico versionado."""
-        staging_path = Path(train_result["staging_path"])
-        final_path = MODELS_DIR / "model.pkl"
-        shutil.copyfile(staging_path, final_path)
+        """Publica o modelo no remote do DVC e guarda o historico local."""
+        model_path = Path(train_result["model_path"])
+        _run_dvc("push")
 
         history_dir = MODELS_DIR / "history"
         history_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
-        shutil.copyfile(staging_path, history_dir / f"model_{timestamp}.pkl")
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+        shutil.copyfile(model_path, history_dir / f"model_{timestamp}.pkl")
 
         print(
-            f"Modelo promovido para {final_path} "
-            f"(accuracy={train_result['accuracy']:.4f}, macro_f1={train_result['macro_f1']:.4f})"
+            f"Modelo publicado no remote e versionado em dvc.lock "
+            f"(accuracy={train_result['accuracy']:.4f}, "
+            f"macro_f1={train_result['macro_f1']:.4f})"
         )
 
     data_info = load_and_validate_data()

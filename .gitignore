@@ -13,11 +13,16 @@ htmlcov/
 venv/
 *.egg-info/
 
-# Data (regenerable via src/prepare_dataset.py)
+# Data (regenerable via `dvc repro` -- as pastas agora sao outs do DVC,
+# que gerencia seu proprio .gitignore interno; os antigos .gitkeep sairam
+# do Git em favor do dvc.yaml/dvc.lock)
 data/raw/*
 data/processed/*
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+
+# DVC: remote local e cache (os metadados .dvc/ e dvc.lock vao para o Git)
+.dvcstore/
+/.dvc/cache
+/.dvc/tmp
 
 # Models (regenerable via src/train.py or the Airflow DAG)
 models/*.pkl

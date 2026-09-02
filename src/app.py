@@ -19,7 +19,7 @@ Contrato formal da API: docs/api_contract.md
 
 import logging
 from contextlib import asynccontextmanager
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model.pkl"
 
 
-class PredictionLabel(str, Enum):
+class PredictionLabel(StrEnum):
     """Classes de urgencia suportadas pelo modelo de triagem."""
 
     NORMAL = "normal"
@@ -139,7 +139,7 @@ def _require_model():
             detail=(
                 "Modelo de ML indisponivel. "
                 "Verifique se models/model.pkl existe e e compativel "
-                "com as versoes de requirements.txt."
+                "com as versoes de pyproject.toml/uv.lock."
             ),
         )
     return model_pipeline

@@ -8,9 +8,10 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 
 ## Status
 
-- [x] Etapa 1.1 — Dataset e preparação
-- [x] Etapa 1.2 — Modelo baseline
-- [x] Etapa 1.3 — DAG Airflow
+- [x] Etapa 1 — Dataset, modelo baseline e DAG Airflow
+- [x] Etapa 2 — API FastAPI, Docker e decisão arquitetural
+- [x] Etapa 3 — Testes, CI/CD e observabilidade
+- [ ] Etapa 4 — Otimização de latência e benchmark
 
 ## Estrutura do projeto
 
@@ -35,42 +36,47 @@ docs/
   airflow_run_evidence.png # print de uma execução bem-sucedida da DAG (Etapa 1.3)
 dags/
   train_pipeline.py        # DAG de retreino: carregamento -> treino -> salvamento
-docker-compose.yml    # ambiente local do Airflow (Postgres + webserver + scheduler)
-Dockerfile.airflow    # imagem do Airflow usada pelo docker-compose (não é a imagem da API)
-requirements.txt      # dependências de runtime (também instaladas na imagem do Airflow)
-requirements-dev.txt  # requirements.txt + pytest (uso local)
+docker-compose.yml         # stack de monitoramento (API + Prometheus + Grafana)
+docker-compose.airflow.yml # ambiente local do Airflow (Postgres + webserver + scheduler)
+Dockerfile                 # imagem da API de inferencia
+Dockerfile.airflow         # imagem do Airflow (nao e a imagem da API)
+pyproject.toml         # dependencias, grupos e configuracao de ruff/pytest
+uv.lock                # versoes exatas (fonte de verdade)
+params.yaml   # hiperparametros do pipeline (fonte unica)
+dvc.yaml      # estagios: download -> prepare -> train
+dvc.lock      # hashes dos dados/modelo de cada execucao
+.dvcstore/    # remote local do DVC (nao versionado)
 ```
 
 ## Instalação
 
-Pré-requisitos: Python 3.10+.
-
-> Confirme a versão antes de criar a venv (`python3 --version`): em alguns
-> sistemas o `python3` padrão do `PATH` é mais antigo (ex.: 3.9). Com uma
-> versão abaixo de 3.10 os testes falham com erros obscuros como
-> `TypeError: zip() takes no keyword arguments` (o parâmetro `strict=` do
-> `zip()` só existe a partir do 3.10) — use `python3.10`/`python3.11`/
-> `python3.12`/`python3.13` (ou o binário equivalente do seu sistema)
-> explicitamente se necessário.
+Pré-requisitos: Python 3.12+ e [uv](https://docs.astral.sh/uv/) (o arquivo
+`.python-version` fixa `3.12`; ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-source .venv/bin/activate
+# instalar o uv (uma vez)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-pip install -r requirements-dev.txt
+# criar o ambiente e instalar tudo (dev + pipeline)
+uv sync
 ```
 
-`requirements.txt` contém só as dependências de runtime (usadas também
-dentro da imagem do Airflow); `requirements-dev.txt` adiciona o `pytest`
-para rodar os testes localmente.
+`uv sync` lê `pyproject.toml` e `uv.lock`, cria o `.venv` e instala as
+versões exatas do lock. Não é necessário ativar o ambiente: `uv run <comando>`
+e os alvos do `Makefile` já executam dentro dele.
+
+O projeto declara três conjuntos de dependências:
+
+| Conjunto | Conteúdo | Instalação |
+|---|---|---|
+| `[project.dependencies]` | runtime da API (inclui `pandas`/`requests` — cadeia de imports `src.app -> src.train -> src.prepare_dataset`, ver ADR-0007) | `uv sync --no-default-groups` |
+| grupo `pipeline` | `dvc` (uso local: `uv run dvc ...`) | `uv sync --no-default-groups --group pipeline` |
+| grupo `dev` (padrão) | pytest, ruff, httpx + `pipeline` | `uv sync` |
 
 ## Rodando os testes
 
 ```bash
-pytest -q
+make test
 ```
 
 ## Preparando o dataset (Etapa 1.1)
@@ -81,7 +87,15 @@ limpa os dados, mapeia as classes clínicas originais para `normal` /
 benchmark:
 
 ```bash
-python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
+uv run dvc repro prepare
+```
+
+Caminho recomendado: reaproveita o cache do DVC (não repete o download se
+`data/raw` já estiver presente e inalterado). O comando direto continua
+funcionando como alternativa:
+
+```bash
+uv run python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
 ```
 
 Saídas geradas:
@@ -100,7 +114,16 @@ padrão, ou Linear SVC) sobre o dataset processado, avalia accuracy e F1 por
 classe e serializa o pipeline completo:
 
 ```bash
-python -m src.train --model logreg --seed 42
+uv run dvc repro train
+```
+
+Caminho recomendado: reaproveita o cache do DVC — se `data/processed` não
+mudou desde a última execução, só o estágio `train` roda. Os hiperparâmetros
+vêm de `params.yaml`. O comando direto continua funcionando como
+alternativa:
+
+```bash
+uv run python -m src.train --model logreg --seed 42
 ```
 
 Opções disponíveis: `--train-path`, `--test-path`, `--model-out`,
@@ -115,26 +138,30 @@ Para validar isoladamente que o modelo salvo carrega e prediz corretamente
 sobre as amostras de benchmark:
 
 ```bash
-pytest tests/test_model_loading.py -v
+uv run pytest tests/test_model_loading.py -v
 ```
 
 ## DAG de retreino no Airflow (Etapa 1.3)
 
 Pré-requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 instalado e em execução, e o dataset já processado (rode a Etapa 1.1 antes:
-`python -m src.prepare_dataset`).
+`uv run python -m src.prepare_dataset`).
 
 A DAG `train_pipeline` simula um fluxo de retreino agendado (`@weekly`) com
 3 tasks, na ordem obrigatória `carregamento/validação dos dados → treino →
-salvamento do modelo`, reutilizando diretamente as funções de
-`src/prepare_dataset.py` e `src/train.py` (nenhuma lógica é duplicada). A
-cada execução, o modelo treinado é promovido para `models/model.pkl` e uma
-cópia versionada por timestamp é salva em `models/history/`.
+salvamento do modelo`. Cada task chama os estágios do pipeline DVC
+(`dvc repro prepare`, `dvc repro train`, `dvc push`) via subprocess — a
+lógica de dados e treino mora em `dvc.yaml`, que por sua vez chama
+`src/prepare_dataset.py` e `src/train.py` (ver seção
+["Pipeline de dados com DVC"](#pipeline-de-dados-com-dvc)). A cada execução,
+o modelo treinado é promovido para `models/model.pkl` e uma cópia
+versionada por timestamp é salva em `models/history/`.
 
 ### Subir o ambiente
 
 ```bash
-docker compose up -d --build
+make dev-airflow
+# equivalente a: docker compose -f docker-compose.airflow.yml up -d --build
 ```
 
 Isso builda a imagem `Dockerfile.airflow` (Airflow + dependências do
@@ -152,7 +179,8 @@ Pela interface: localize `train_pipeline` na lista de DAGs, ative o toggle
 (unpause) e clique em **Trigger DAG** (▶). Ou via linha de comando:
 
 ```bash
-docker compose exec airflow-webserver airflow dags trigger train_pipeline
+docker compose -f docker-compose.airflow.yml exec airflow-webserver \
+  airflow dags trigger train_pipeline
 ```
 
 Acompanhe o progresso na visão **Graph** ou **Grid** da DAG. Os logs de
@@ -169,24 +197,76 @@ O `apache-airflow` traz `dill` como dependência transitiva, e isso faz o
 `pickle` do Python usar handlers do `dill` para alguns objetos durante o
 `joblib.dump` — ou seja, um `model.pkl` treinado **dentro do container**
 Airflow só recarrega em outro ambiente se esse ambiente também tiver
-`dill` instalado. Por isso `dill` está declarado em `requirements.txt`
-(runtime, não só dev) e o `scikit-learn` está fixado em `==1.5.1` (tanto
-localmente quanto na imagem do Airflow), evitando o
-`InconsistentVersionWarning` do scikit-learn ao desserializar um modelo
-treinado em outra versão. Qualquer ambiente que for carregar
-`models/model.pkl` (ex.: a API da Etapa 2) deve instalar as mesmas
-versões de `requirements.txt`.
+`dill` instalado. Por isso `dill` está declarado em `[project.dependencies]`
+(runtime, não só dev), o `scikit-learn` está fixado em `==1.5.1` (evitando o
+`InconsistentVersionWarning` ao desserializar um modelo treinado em outra
+versão) e o `numpy` está fixado em `==1.26.4` — mesma versão das constraints
+oficiais do Airflow, que é o ambiente menos flexível dos dois. Qualquer
+ambiente que for carregar `models/model.pkl` (ex.: a API da Etapa 2) deve
+instalar as mesmas versões declaradas em `pyproject.toml` e fixadas em
+`uv.lock` (ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ### Encerrar o ambiente
 
 ```bash
-docker compose down
+docker compose -f docker-compose.airflow.yml down
+
+# reset completo do metastore (remove o volume do Postgres)
+docker compose -f docker-compose.airflow.yml down -v
 ```
 
-Para remover também o volume do Postgres (reset completo do metastore):
+## Pipeline de dados com DVC
+
+O pipeline de dados e treino é declarado em `dvc.yaml`, com três estágios:
+
+```
+download  →  prepare  →  train
+data/raw     data/processed   models/model.pkl
+             benchmark_samples.json   docs/model_metrics.{md,json}
+             docs/dataset_distribution.md
+```
+
+Os hiperparâmetros ficam em `params.yaml` — fonte única, consumida tanto pela
+execução local quanto pela DAG do Airflow.
+
+### Obter os dados e o modelo
 
 ```bash
-docker compose down -v
+uv run dvc pull
+```
+
+Baixa `data/` e `models/model.pkl` do remote local (`.dvcstore/`) na versão
+correspondente ao commit atual — **reaproveitando o cache já existente na
+mesma máquina**, sem re-treinar nem reprocessar nada. `.dvcstore/` está no
+`.gitignore`: existe só na máquina onde alguém rodou `dvc push`, não é
+publicado junto com o repositório. Numa máquina nova (clone limpo, sem
+`.dvcstore/` local), `dvc pull` não tem de onde baixar; o primeiro
+`uv run dvc repro` ainda faz o download original do corpus em
+`raw.githubusercontent.com` (estágio `download`). O valor do remote local é
+reuso de cache/reprodutibilidade na mesma máquina entre execuções, não
+eliminar essa dependência externa para todo o time.
+
+### Reproduzir o pipeline
+
+```bash
+uv run dvc repro
+```
+
+O DVC reexecuta **apenas** os estágios afetados. Alterar
+`train.max_features` em `params.yaml` retreina o modelo sem reprocessar os
+17 MB de `data/raw`.
+
+### Experimentar sem editar `params.yaml`
+
+```bash
+uv run dvc exp run -S train.max_features=500
+uv run dvc metrics diff
+```
+
+### Publicar artefatos
+
+```bash
+uv run dvc push
 ```
 
 ## API de inferência (Etapa 2)
@@ -212,7 +292,8 @@ O `Dockerfile` da API executa os seguintes passos:
 
 1. Parte de `python:3.12-slim` (mesmo major/minor usado no ambiente de dev,
    garantindo compatibilidade com o pickle do modelo).
-2. Instala `requirements.txt` em uma camada própria (otimiza cache de build).
+2. Instala as dependências de runtime com `uv sync --frozen
+   --no-default-groups` em uma camada própria (otimiza cache de build).
 3. Copia `src/` e o artefato `models/model.pkl`.
 4. Executa como usuário não-root (`appuser`).
 5. Expõe a porta `8000` e sobe o Uvicorn em `src.app:app`.

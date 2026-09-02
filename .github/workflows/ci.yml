@@ -15,32 +15,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-      - name: Instalar ruff
-        run: pip install "ruff>=0.6.0"
+      - name: Instalar dependencias
+        run: uv sync --frozen
       - name: Rodar ruff
-        run: ruff check src/ tests/ dags/
+        run: uv run ruff check src/ tests/ dags/
 
   test:
     name: Testes (pytest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
       - name: Instalar dependencias
-        run: |
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+        run: uv sync --frozen
       - name: Rodar pytest
         # Os testes sao mockados e nao dependem de models/model.pkl:
         # tests/test_model_loading.py faz skip automatico quando ausente.
-        run: pytest -v
+        run: uv run pytest -v
 
   smoke-train:
     name: Dummy training (pipeline em miniatura)
@@ -48,22 +46,23 @@ jobs:
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-      - name: Instalar dependencias
-        run: pip install -r requirements.txt
+      - name: Instalar dependencias do pipeline
+        run: uv sync --frozen --no-default-groups --group pipeline
       - name: Treinar modelo em amostra minima
         # Fixture versionado: sem download externo, o CI nao depende de
         # terceiros. Prova que src/train.py roda de ponta a ponta.
         run: |
           mkdir -p models
-          python -m src.train \
+          uv run python -m src.train \
             --train-path tests/fixtures/sample_dataset.csv \
             --test-path tests/fixtures/sample_dataset.csv \
             --model-out models/model.pkl \
             --metrics-out /tmp/smoke_metrics.md \
+            --metrics-json-out /tmp/smoke_metrics.json \
             --max-features 500
       - name: Publicar artefato para o job de build
         # Jobs rodam em runners isolados, sem filesystem compartilhado.
