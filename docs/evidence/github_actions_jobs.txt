@@ -1,0 +1,4 @@
+{"conclusion":"success","name":"Testes (pytest)"}
+{"conclusion":"success","name":"Lint (ruff)"}
+{"conclusion":"success","name":"Dummy training (pipeline em miniatura)"}
+{"conclusion":"success","name":"Build da imagem Docker"}

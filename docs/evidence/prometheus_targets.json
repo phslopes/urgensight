@@ -1,0 +1,36 @@
+{
+    "status": "success",
+    "data": {
+        "activeTargets": [
+            {
+                "discoveredLabels": {
+                    "__address__": "api:8000",
+                    "__metrics_path__": "/metrics",
+                    "__scheme__": "http",
+                    "__scrape_interval__": "15s",
+                    "__scrape_timeout__": "10s",
+                    "job": "urgensight-api",
+                    "service": "urgensight"
+                },
+                "labels": {
+                    "instance": "api:8000",
+                    "job": "urgensight-api",
+                    "service": "urgensight"
+                },
+                "scrapePool": "urgensight-api",
+                "scrapeUrl": "http://api:8000/metrics",
+                "globalUrl": "http://api:8000/metrics",
+                "lastError": "",
+                "lastScrape": "2026-09-02T00:53:35.957506803Z",
+                "lastScrapeDuration": 0.005359667,
+                "health": "up",
+                "scrapeInterval": "15s",
+                "scrapeTimeout": "10s"
+            }
+        ],
+        "droppedTargets": [],
+        "droppedTargetCounts": {
+            "urgensight-api": 0
+        }
+    }
+}

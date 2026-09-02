@@ -1,5 +1,7 @@
 # UrgenSight
 
+[![CI](https://github.com/Edwardmaster7/urgensight/actions/workflows/ci.yml/badge.svg)](https://github.com/Edwardmaster7/urgensight/actions/workflows/ci.yml)
+
 Sistema de triagem automática de exames de texto (laudos médicos) para
 classificação de urgência em 3 classes: `normal`, `atencao`, `urgente`.
 Projeto acadêmico (Tech Challenge — FIAP MLET).
@@ -42,6 +44,14 @@ requirements-dev.txt  # requirements.txt + pytest (uso local)
 ## Instalação
 
 Pré-requisitos: Python 3.10+.
+
+> Confirme a versão antes de criar a venv (`python3 --version`): em alguns
+> sistemas o `python3` padrão do `PATH` é mais antigo (ex.: 3.9). Com uma
+> versão abaixo de 3.10 os testes falham com erros obscuros como
+> `TypeError: zip() takes no keyword arguments` (o parâmetro `strict=` do
+> `zip()` só existe a partir do 3.10) — use `python3.10`/`python3.11`/
+> `python3.12`/`python3.13` (ou o binário equivalente do seu sistema)
+> explicitamente se necessário.
 
 ```bash
 python -m venv .venv
@@ -251,6 +261,21 @@ docker logs -f urgensight-api
 docker stop urgensight-api && docker rm urgensight-api
 ```
 
+### Medição de latência baseline
+
+```bash
+# Instalar hey (macOS)
+brew install hey
+
+# Benchmark: 100 requisições, 4 conexões concorrentes
+hey -n 100 -c 4 -m POST \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Paciente apresenta tosse e febre. Necessita triagem urgente."}' \
+  http://localhost:8000/predict
+```
+
+Resultados do baseline (Apple M4 Pro, Docker local): ver [`docs/baseline_latency.md`](docs/baseline_latency.md).
+
 ### Nota: reproducibilidade do `model.pkl`
 
 O `Dockerfile` copia o `models/model.pkl` presente no contexto de build. Para
@@ -376,6 +401,76 @@ teórica de arquitetura e não contempla o provisionamento real,
 configuração de redes, custos ou conformidade com órgãos reguladores
 (ANVISA, CFM). Qualquer implantação em ambiente hospitalar real exigiria
 avaliação jurídica, testes de penetração e validação clínica do modelo.**
+
+## Testes e Lint (Etapa 3)
+
+Além de `pytest -q` (seção acima), o projeto padroniza a execução via
+Makefile:
+
+```bash
+make test       # roda toda a suite (python -m pytest)
+make test-cov   # pytest com cobertura de codigo (--cov=src --cov-report=term-missing)
+make lint       # ruff check src/ tests/ dags/
+make format     # ruff format + ruff check --fix
+```
+
+`ruff` cuida de formatação, `isort` e lint em um único comando. A suíte de
+testes cobre `src/prepare_dataset.py`, `src/train.py`, `src/app.py` e
+`src/metrics.py` (instrumentação Prometheus), além de validar o carregamento
+isolado do `models/model.pkl`.
+
+## CI/CD (Etapa 3)
+
+O pipeline definido em [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+roda em todo `push` para `main`/`feat/**` e em todo `pull_request` para
+`main`, com quatro jobs encadeados:
+
+1. **Lint (ruff)** — `ruff check src/ tests/ dags/`.
+2. **Testes (pytest)** — roda a suíte completa; os testes são mockados/usam
+   fixtures e não dependem de `models/model.pkl` (`test_model_loading.py` faz
+   skip automático quando o arquivo está ausente).
+3. **Dummy training** — treina `src/train.py` de ponta a ponta sobre um
+   fixture versionado (`tests/fixtures/sample_dataset.csv`), sem download
+   externo, apenas para provar que o pipeline de treino roda no CI. O
+   `model.pkl` gerado é publicado como artefato para o job seguinte.
+4. **Build da imagem Docker** — baixa o artefato do job anterior e builda a
+   imagem (`docker build`), sem publicar em nenhum registry.
+
+`lint` e `test` rodam em paralelo; `smoke-train` e `build` dependem
+(`needs`) dos anteriores, na ordem `lint ∥ test → smoke-train → build`.
+
+## Monitoramento (Etapa 3)
+
+Stack local de observabilidade via Docker Compose: API + Prometheus +
+Grafana. **O Airflow (Etapa 1.3) agora sobe separadamente**, com
+`make dev-airflow` (`docker-compose.airflow.yml`) — o `docker-compose.yml` da
+raiz é exclusivo da stack de monitoramento.
+
+```bash
+make dev              # sobe API + Prometheus + Grafana (builda o modelo se necessario)
+make load             # gera trafego real contra POST /predict
+make monitoring-down  # derruba a stack
+```
+
+URLs:
+
+- API (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
+- Prometheus (targets): [http://localhost:9090/targets](http://localhost:9090/targets)
+- Grafana (dashboard, sem login — acesso anônimo em modo Viewer):
+  [http://localhost:3000](http://localhost:3000)
+
+O dashboard `monitoring/dashboard.json` é provisionado automaticamente ao
+subir o Grafana, com 6 painéis: total de requisições, modelo carregado,
+throughput (req/s), latência (p50/p95/p99), taxa de erro (não-2xx) e
+predições por classe de urgência. `scripts/generate_load.py`
+(`make load`, ou `python scripts/generate_load.py --duration <s> --rps <n>
+--error-rate <0-1>`) gera tráfego sintético contra `/predict` — incluindo uma
+fração configurável de payloads inválidos — para popular os painéis com
+dados reais.
+
+Detalhes da instrumentação (`src/metrics.py`), do contrato de métricas e das
+evidências coletadas: [`docs/api_contract.md`](docs/api_contract.md) e
+[`docs/monitoring_evidence.md`](docs/monitoring_evidence.md).
 
 ## Licença
 

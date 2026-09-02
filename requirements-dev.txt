@@ -1,4 +1,17 @@
 -r requirements.txt
 pytest>=8.0
-# TestClient do FastAPI 0.110+ exige httpx2 (nao httpx legado)
-httpx2>=0.28
+# TestClient do FastAPI 0.110+ exige httpx (usado por starlette.testclient).
+# Nome do pacote corrigido: "httpx2" era um pacote PyPI distinto e nao
+# relacionado (nao expõe o modulo "httpx"), o que so nao quebrava
+# localmente porque pyproject.toml ja declara "httpx>=0.27.0" e ambientes
+# uv/pip -e instalavam a partir de la; o CI instala so a partir dos
+# requirements*.txt e expunha o ImportError.
+httpx>=0.28
+# make lint e make test-cov (README, secao "Testes e Lint") dependem destes
+# dois pacotes. Faltavam aqui: pyproject.toml ja os declara em
+# [project.optional-dependencies].dev, mas o README instrui apenas
+# `pip install -r requirements-dev.txt`, sem o extra do pyproject -- sem
+# isso, `make lint`/`make test-cov` falhavam em qualquer ambiente instalado
+# ao pe da letra pelo README (confirmado em venv limpa).
+ruff>=0.6.0
+pytest-cov>=5.0.0

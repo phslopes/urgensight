@@ -8,8 +8,8 @@
 | Etapa | Responsável | Foco                                                | Critérios diretamente atendidos   | Status        |
 | ----- | ------------ | --------------------------------------------------- | --------------------------------- | ------------- |
 | 1     | Integrante 1 | Dados, modelo NLP e DAG Airflow                     | Modelagem base + Airflow (15%)    | ✅ Concluída  |
-| 2     | Integrante 2 | API FastAPI, Docker e arquitetura em nuvem          | API/Docker + README (15%)         | 🟡 Quase pronta |
-| 3     | Integrante 3 | Testes, CI/CD e monitoramento                       | CI/CD (15%) + Monitoramento (20%) | 🟡 Parcial    |
+| 2     | Integrante 2 | API FastAPI, Docker e arquitetura em nuvem          | API/Docker + README (15%)         | ✅ Concluída  |
+| 3     | Integrante 3 | Testes, CI/CD e monitoramento                       | CI/CD (15%) + Monitoramento (20%) | ✅ Concluída  |
 | 4     | Integrante 4 | Otimização de latência e benchmark                  | Modelagem/Otimização (20%)        | ⬜ Não iniciada |
 | Final | Todos        | README final, validação, vídeo STAR e submissão     | README (15%) + Vídeo (15%)        | ⬜ Não iniciada |
 
@@ -81,11 +81,11 @@
 
 ---
 
-# Etapa 2 — API FastAPI, Docker e Arquitetura 🟡
+# Etapa 2 — API FastAPI, Docker e Arquitetura ✅
 
 **Responsável:** Integrante 2
 **Janela principal:** 12/08 a 31/08
-**Status:** Quase pronta — falta executar o Docker com modelo real e preencher baseline de latência com dados reais.
+**Status:** Concluída — Docker validado com modelo real, baseline de latência medido e registrado.
 
 ## 2.1. Fundação da API
 
@@ -117,12 +117,12 @@
 - [x] Expor a porta da API
 - [x] Configurar comando de inicialização com Uvicorn
 - [x] Fazer build da imagem localmente
-- [ ] Subir o container e validar `GET /health` *(requer `models/model.pkl` presente; gerar com `make train` antes do build)*
-- [ ] Validar `POST /predict` rodando exclusivamente dentro do container
+- [x] Subir o container e validar `GET /health`
+- [x] Validar `POST /predict` rodando exclusivamente dentro do container
 - [x] Criar instruções de build e execução no README
-- [ ] Medir latência baseline da API em Docker *(procedimento documentado em `docs/baseline_latency.md`, mas dados não preenchidos)*
-- [ ] Salvar baseline em `docs/baseline_latency.md` *(template criado; preencher com medições reais do `hey`)*
-- [ ] Entregar baseline e Dockerfile ao Integrante 4
+- [x] Medir latência baseline da API em Docker (100 req, 4 concurrent — p50: 2.4ms, p95: 5.8ms, 1220 req/s)
+- [x] Salvar baseline em `docs/baseline_latency.md`
+- [x] Entregar baseline e Dockerfile ao Integrante 4
 
 ## 2.4. Decisão arquitetural em nuvem
 
@@ -140,17 +140,20 @@
 - [x] `POST /predict`
 - [x] `docs/api_contract.md`
 - [x] `Dockerfile`
-- [ ] API com modelo real rodando em Docker *(pendente: gerar model.pkl → build → validar)*
-- [ ] `docs/baseline_latency.md` com dados reais *(template existe; medição pendente)*
+- [x] API com modelo real rodando em Docker
+- [x] `docs/baseline_latency.md` com dados reais
 - [x] Decisão arquitetural documentada no README
 
 ---
 
-# Etapa 3 — Testes, CI/CD e Observabilidade 🟡
+# Etapa 3 — Testes, CI/CD e Observabilidade ✅
 
 **Responsável:** Integrante 3
 **Janela principal:** 12/08 a 09/09
-**Status:** Testes e lint prontos. CI/CD, Prometheus e Grafana ainda não iniciados.
+**Status:** Concluída. CI/CD verde no GitHub Actions (lint ∥ test → smoke-train →
+build), API instrumentada com Prometheus, stack Docker Compose (API +
+Prometheus + Grafana) validada e dashboard Grafana provisionado com 6 painéis
+populados por tráfego real.
 
 ## 3.1. Testes automatizados
 
@@ -161,71 +164,71 @@
 - [x] Criar mock/fixture de modelo para os testes não dependerem do modelo final (`conftest.py` + fixtures em `tests/test_app.py`)
 - [x] Configurar linter `ruff` (`pyproject.toml`)
 - [x] Garantir execução local de lint e testes (`make test` / `make lint`)
-- [ ] Rodar testes após a integração do modelo real
+- [x] Rodar testes após a integração do modelo real
 
 ## 3.2. GitHub Actions
 
-- [ ] Criar `.github/workflows/ci.yml`
-- [ ] Configurar execução automática em `push`
-- [ ] Configurar execução em `pull_request`
-- [ ] Criar job de lint
-- [ ] Criar job de testes com `pytest`
-- [ ] Criar job de build da imagem Docker
-- [ ] Garantir no mínimo duas automações obrigatórias: lint e testes
-- [ ] Validar workflow verde em push real
-- [ ] Adicionar badge do GitHub Actions ao README
-- [ ] Documentar comandos de teste e lint no README
+- [x] Criar `.github/workflows/ci.yml`
+- [x] Configurar execução automática em `push`
+- [x] Configurar execução em `pull_request`
+- [x] Criar job de lint
+- [x] Criar job de testes com `pytest`
+- [x] Criar job de build da imagem Docker
+- [x] Garantir no mínimo duas automações obrigatórias: lint e testes
+- [x] Validar workflow verde em push real
+- [x] Adicionar badge do GitHub Actions ao README
+- [x] Documentar comandos de teste e lint no README
 
 ## 3.3. Instrumentação com Prometheus
 
-- [ ] Criar branch própria para alterações em `src/app.py`
-- [ ] Adicionar contador de requisições recebidas
-- [ ] Adicionar métrica de latência/tempo de resposta
-- [ ] Adicionar contador de erros
-- [ ] Expor endpoint `GET /metrics`
-- [ ] Validar que métricas são atualizadas após requisições ao `/predict`
-- [ ] Confirmar que `/metrics` responde no formato Prometheus
-- [ ] Abrir pull request para integração das métricas
+- [x] Criar branch própria para alterações em `src/app.py`
+- [x] Adicionar contador de requisições recebidas
+- [x] Adicionar métrica de latência/tempo de resposta
+- [x] Adicionar contador de erros
+- [x] Expor endpoint `GET /metrics`
+- [x] Validar que métricas são atualizadas após requisições ao `/predict`
+- [x] Confirmar que `/metrics` responde no formato Prometheus
+- [x] Abrir pull request para integração das métricas
 
 ## 3.4. Stack Docker Compose
 
-- [ ] Criar `monitoring/prometheus.yml`
-- [ ] Configurar scrape da API pelo endpoint `/metrics`
-- [ ] Criar `docker-compose.yml` para monitoring *(o existente é exclusivo para Airflow)*
-- [ ] Adicionar serviço da API
-- [ ] Adicionar serviço do Prometheus
-- [ ] Adicionar serviço do Grafana
-- [ ] Configurar portas, rede e dependências entre serviços
-- [ ] Subir a stack com `docker compose up --build`
-- [ ] Confirmar API acessível
-- [ ] Confirmar Prometheus acessível
-- [ ] Confirmar que o target da API aparece como **UP** no Prometheus
+- [x] Criar `monitoring/prometheus.yml`
+- [x] Configurar scrape da API pelo endpoint `/metrics`
+- [x] Criar `docker-compose.yml` para monitoring *(o existente é exclusivo para Airflow)*
+- [x] Adicionar serviço da API
+- [x] Adicionar serviço do Prometheus
+- [x] Adicionar serviço do Grafana
+- [x] Configurar portas, rede e dependências entre serviços
+- [x] Subir a stack com `docker compose up --build`
+- [x] Confirmar API acessível
+- [x] Confirmar Prometheus acessível
+- [x] Confirmar que o target da API aparece como **UP** no Prometheus
 
 ## 3.5. Dashboard Grafana
 
-- [ ] Configurar Prometheus como datasource do Grafana
-- [ ] Criar painel de total de requisições
-- [ ] Criar painel de latência/tempo de resposta
-- [ ] Criar painel de taxa de erro
-- [ ] Garantir o mínimo obrigatório de três painéis
-- [ ] Criar `scripts/generate_load.py` para gerar tráfego no endpoint `/predict`
-- [ ] Popular os gráficos com dados reais
-- [ ] Exportar dashboard para `monitoring/dashboard.json`
-- [ ] Salvar prints do dashboard em `docs/`
-- [ ] Documentar acesso e execução da stack no README
+- [x] Configurar Prometheus como datasource do Grafana
+- [x] Criar painel de total de requisições
+- [x] Criar painel de latência/tempo de resposta
+- [x] Criar painel de taxa de erro
+- [x] Garantir o mínimo obrigatório de três painéis
+- [x] Criar `scripts/generate_load.py` para gerar tráfego no endpoint `/predict`
+- [x] Popular os gráficos com dados reais
+- [x] Exportar dashboard para `monitoring/dashboard.json`
+- [x] Salvar prints do dashboard em `docs/`
+- [x] Documentar acesso e execução da stack no README
 
 ### Entregáveis da Etapa 3
 
 - [x] Testes com `pytest`
 - [x] Lint configurado
-- [ ] `.github/workflows/ci.yml`
-- [ ] Workflow verde
-- [ ] API instrumentada com `prometheus_client`
-- [ ] `docker-compose.yml` (stack de monitoring)
-- [ ] `monitoring/prometheus.yml`
-- [ ] Dashboard Grafana com 3 painéis
-- [ ] `monitoring/dashboard.json`
-- [ ] Prints com métricas reais
+- [x] `.github/workflows/ci.yml`
+- [x] Workflow verde
+- [x] API instrumentada com `prometheus_client`
+- [x] `docker-compose.yml` (stack de monitoring)
+- [x] `monitoring/prometheus.yml`
+- [x] Dashboard Grafana com 3 painéis
+- [x] `monitoring/dashboard.json`
+- [x] Prints com métricas reais
 
 ---
 
@@ -327,28 +330,27 @@
 | --------------- | --------------------------------------------------------------------------------- | ------- |
 | **16/08** | Dataset validado, API mockada, testes iniciais e benchmark estruturado            | ✅ OK   |
 | **24/08** | Modelo baseline salvo, API integrada ou pronta para integrar, CI verde            | 🟡 Parcial — CI não iniciado |
-| **31/08** | Docker funcional, baseline de latência, DAG Airflow executada                    | 🔴 Amanhã — Docker e baseline pendentes |
-| **06/09** | Métricas expostas, Prometheus coletando dados, técnica de otimização aplicada | ⬜ Pendente |
-| **10/09** | Grafana com 3 painéis, benchmark final, README quase fechado                     | ⬜ Pendente |
+| **31/08** | Docker funcional, baseline de latência, DAG Airflow executada                    | ✅ OK — Docker validado, baseline medido (2026-08-30) |
+| **06/09** | Métricas expostas, Prometheus coletando dados, técnica de otimização aplicada | 🟡 Parcial — Etapa 3 concluída (métricas expostas e Prometheus coletando); técnica de otimização da Etapa 4 pendente |
+| **10/09** | Grafana com 3 painéis, benchmark final, README quase fechado                     | 🟡 Parcial — Grafana com 6 painéis populados (Etapa 3 concluída); benchmark final da Etapa 4 pendente |
 | **12/09** | Vídeo ensaiado, solução executada do zero, evidências revisadas               | ⬜ Pendente |
 | **15/09** | Entrega submetida                                                                 | ⬜ Pendente |
 
 ## Dependências críticas
 
-- **Etapa 1 → Etapa 2:** ✅ modelo.pkl entregue; Docker com modelo real ainda não validado.
-- **Etapa 1 → Etapa 4:** modelo baseline pronto; benchmark_samples.json disponível. Aguardando início da Etapa 4.
-- **Etapa 2 → Etapa 3:** Testes e lint já funcionam. Prometheus/Grafana dependem da API instrumentada.
-- **Etapa 2 → Etapa 4:** baseline_latency.md existe como template; medição real pendente (urgente: checkpoint 31/08).
+- **Etapa 1 → Etapa 2:** ✅ Concluída — modelo.pkl entregue, Docker validado com modelo real.
+- **Etapa 1 → Etapa 4:** ✅ modelo baseline pronto; benchmark_samples.json disponível. Aguardando início da Etapa 4.
+- **Etapa 2 → Etapa 3:** ✅ Concluída — API instrumentada com `prometheus_client`, Prometheus e Grafana coletando e exibindo dados reais.
+- **Etapa 2 → Etapa 4:** ✅ baseline_latency.md preenchido com dados reais (p50: 2.4ms, p95: 5.8ms, 1220 req/s).
 - **Etapa 3 → vídeo:** dashboard precisa estar populado antes da gravação.
 - **Etapa 4 → vídeo:** comparação de latência precisa estar fechada antes da narrativa de resultado.
 
 ---
 
-## Resumo de pendências prioritárias (por checkpoint 31/08)
+## Resumo de pendências prioritárias (por checkpoint 06/09)
 
 | Prioridade | Item | Responsável |
 | ---------- | ---- | ----------- |
-| 🔴 URGENTE | Gerar `models/model.pkl` → build Docker → validar `/health` e `/predict` | Integrante 2 |
-| 🔴 URGENTE | Executar medição com `hey` e preencher `docs/baseline_latency.md` | Integrante 2 |
-| 🟠 ALTO    | Criar `.github/workflows/ci.yml` com jobs de lint e pytest | Integrante 3 |
+| ✅ FEITO   | Docker validado com modelo real, baseline de latência medido | Integrante 2 |
+| ✅ FEITO   | Criar `.github/workflows/ci.yml` com jobs de lint e pytest | Integrante 3 |
 | 🟠 ALTO    | Iniciar planejamento da otimização (ONNX ou alternativa) | Integrante 4 |

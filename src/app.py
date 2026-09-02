@@ -25,6 +25,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from src.metrics import MODEL_LOADED, PREDICTIONS_TOTAL, setup_metrics
+
 logger = logging.getLogger(__name__)
 
 # Caminho absoluto ancorado na raiz do projeto (dois niveis acima deste
@@ -102,14 +104,17 @@ async def lifespan(app: FastAPI):
     global model_pipeline
     try:
         model_pipeline = _load_model(MODEL_PATH)
+        MODEL_LOADED.set(1)
         logger.info("Modelo carregado com sucesso: %s", MODEL_PATH)
     except Exception as exc:
         model_pipeline = None
+        MODEL_LOADED.set(0)
         logger.error(
             "Falha ao carregar o modelo em %s: %s", MODEL_PATH, exc, exc_info=True
         )
     yield
     model_pipeline = None
+    MODEL_LOADED.set(0)
 
 
 app = FastAPI(
@@ -120,9 +125,10 @@ app = FastAPI(
         "normal, atencao ou urgente. "
         "Inferencia via pipeline TF-IDF + classificador (models/model.pkl)."
     ),
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
+setup_metrics(app)
 
 
 def _require_model():
@@ -174,4 +180,6 @@ def predict(request: PredictRequest) -> PredictResponse:
     """
     pipeline = _require_model()
     prediction = pipeline.predict([request.text])[0]
-    return PredictResponse(prediction=PredictionLabel(prediction))
+    validated = PredictionLabel(prediction)
+    PREDICTIONS_TOTAL.labels(urgency=validated.value).inc()
+    return PredictResponse(prediction=validated)

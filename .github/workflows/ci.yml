@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar ruff
+        run: pip install "ruff>=0.6.0"
+      - name: Rodar ruff
+        run: ruff check src/ tests/ dags/
+
+  test:
+    name: Testes (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      - name: Rodar pytest
+        # Os testes sao mockados e nao dependem de models/model.pkl:
+        # tests/test_model_loading.py faz skip automatico quando ausente.
+        run: pytest -v
+
+  smoke-train:
+    name: Dummy training (pipeline em miniatura)
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Treinar modelo em amostra minima
+        # Fixture versionado: sem download externo, o CI nao depende de
+        # terceiros. Prova que src/train.py roda de ponta a ponta.
+        run: |
+          mkdir -p models
+          python -m src.train \
+            --train-path tests/fixtures/sample_dataset.csv \
+            --test-path tests/fixtures/sample_dataset.csv \
+            --model-out models/model.pkl \
+            --metrics-out /tmp/smoke_metrics.md \
+            --max-features 500
+      - name: Publicar artefato para o job de build
+        # Jobs rodam em runners isolados, sem filesystem compartilhado.
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-model
+          path: models/model.pkl
+          retention-days: 1
+
+  build:
+    name: Build da imagem Docker
+    runs-on: ubuntu-latest
+    needs: [smoke-train]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar o modelo do job anterior
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-model
+          path: models
+      - uses: docker/setup-buildx-action@v3
+      - name: Build da imagem (sem push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: urgensight-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

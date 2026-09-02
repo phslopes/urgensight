@@ -1,69 +1,59 @@
-x-airflow-common: &airflow-common
-  build:
-    context: .
-    dockerfile: Dockerfile.airflow
-  environment: &airflow-common-env
-    AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
-    PROJECT_DIR: /opt/airflow/project
-  volumes:
-    - ./dags:/opt/airflow/dags
-    - ./airflow_logs:/opt/airflow/logs
-    - .:/opt/airflow/project
-  depends_on:
-    postgres:
-      condition: service_healthy
+# Stack de monitoramento da Etapa 3: API + Prometheus + Grafana.
+# A stack do Airflow (Etapa 1.3) vive em docker-compose.airflow.yml.
+#
+# Pre-requisito: models/model.pkl deve existir. Use `make dev`, que garante
+# isso automaticamente, em vez de `docker compose up` direto.
+#
+# Nome de projeto explicito: sem isso, os dois compose files desta pasta
+# resolveriam para o mesmo nome de projeto ("urgensight", derivado do
+# diretorio) e disputariam a mesma rede padrao (urgensight_default),
+# causando "network still in use" ao encerrar um com o outro no ar.
+name: urgensight-monitoring
 
 services:
-  postgres:
-    image: postgres:13
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-      POSTGRES_DB: airflow
-    volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "airflow"]
-      interval: 5s
-      retries: 5
-    restart: always
-
-  airflow-init:
-    <<: *airflow-common
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        airflow db migrate
-        airflow users create \
-          --username admin --password admin \
-          --firstname Admin --lastname User \
-          --role Admin --email admin@example.com || true
-
-  airflow-webserver:
-    <<: *airflow-common
-    command: webserver
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: urgensight-api:latest
     ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-    restart: always
+      - "8000:8000"
+    restart: unless-stopped
 
-  airflow-scheduler:
-    <<: *airflow-common
-    command: scheduler
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
     depends_on:
-      postgres:
-        condition: service_healthy
-      airflow-init:
-        condition: service_completed_successfully
-    restart: always
+      - api
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      # Acesso anonimo em modo Viewer: o avaliador abre localhost:3000 e ve
+      # o dashboard sem login. admin/admin continua valendo para edicao.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 volumes:
-  postgres-db-volume:
+  # Preserva a serie temporal entre restarts -- util para nao perder o
+  # historico dos graficos durante a gravacao do video.
+  prometheus-data:

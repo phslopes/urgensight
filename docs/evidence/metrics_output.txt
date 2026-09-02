@@ -1,0 +1,75 @@
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 12409.0
+python_gc_objects_collected_total{generation="1"} 1750.0
+python_gc_objects_collected_total{generation="2"} 10.0
+# HELP python_gc_objects_uncollectable_total Uncollectable objects found during GC
+# TYPE python_gc_objects_uncollectable_total counter
+python_gc_objects_uncollectable_total{generation="0"} 0.0
+python_gc_objects_uncollectable_total{generation="1"} 0.0
+python_gc_objects_uncollectable_total{generation="2"} 0.0
+# HELP python_gc_collections_total Number of times this generation was collected
+# TYPE python_gc_collections_total counter
+python_gc_collections_total{generation="0"} 357.0
+python_gc_collections_total{generation="1"} 32.0
+python_gc_collections_total{generation="2"} 2.0
+# HELP python_info Python platform information
+# TYPE python_info gauge
+python_info{implementation="CPython",major="3",minor="12",patchlevel="14",version="3.12.14"} 1.0
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.44197632e+09
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 1.85823232e+08
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.78831036533e+09
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 3.95
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 16.0
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP http_requests_total Total de requisicoes HTTP recebidas pela API
+# TYPE http_requests_total counter
+http_requests_total{method="POST",path="/predict",status="200"} 158.0
+http_requests_total{method="POST",path="/predict",status="422"} 19.0
+# HELP http_requests_created Total de requisicoes HTTP recebidas pela API
+# TYPE http_requests_created gauge
+http_requests_created{method="POST",path="/predict",status="200"} 1.7883103715549212e+09
+http_requests_created{method="POST",path="/predict",status="422"} 1.7883103720048532e+09
+# HELP http_request_latency_seconds Latencia das requisicoes HTTP em segundos
+# TYPE http_request_latency_seconds histogram
+http_request_latency_seconds_bucket{le="0.001",method="POST",path="/predict"} 6.0
+http_request_latency_seconds_bucket{le="0.0025",method="POST",path="/predict"} 33.0
+http_request_latency_seconds_bucket{le="0.005",method="POST",path="/predict"} 170.0
+http_request_latency_seconds_bucket{le="0.01",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="0.025",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="0.05",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="0.1",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="0.25",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="0.5",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="1.0",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_bucket{le="+Inf",method="POST",path="/predict"} 177.0
+http_request_latency_seconds_count{method="POST",path="/predict"} 177.0
+http_request_latency_seconds_sum{method="POST",path="/predict"} 0.5988927859725663
+# HELP http_request_latency_seconds_created Latencia das requisicoes HTTP em segundos
+# TYPE http_request_latency_seconds_created gauge
+http_request_latency_seconds_created{method="POST",path="/predict"} 1.7883103715548584e+09
+# HELP model_loaded Indica se o modelo de ML esta carregado em memoria (1) ou nao (0)
+# TYPE model_loaded gauge
+model_loaded 1.0
+# HELP predictions_total Total de predicoes realizadas, por classe de urgencia
+# TYPE predictions_total counter
+predictions_total{urgency="atencao"} 51.0
+predictions_total{urgency="normal"} 46.0
+predictions_total{urgency="urgente"} 61.0
+# HELP predictions_created Total de predicoes realizadas, por classe de urgencia
+# TYPE predictions_created gauge
+predictions_created{urgency="atencao"} 1.7883103715543156e+09
+predictions_created{urgency="normal"} 1.7883103716643486e+09
+predictions_created{urgency="urgente"} 1.7883103718918233e+09

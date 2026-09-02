@@ -31,6 +31,7 @@ laudo em três níveis de urgência: `normal`, `atencao` ou `urgente`.
 |--------|-----------|------------------------------------|
 | GET    | `/health` | Health check da API                |
 | POST   | `/predict`| Classifica a urgência de um laudo  |
+| GET    | `/metrics`| Expõe métricas Prometheus          |
 
 ---
 
@@ -167,6 +168,30 @@ e a aplicação reiniciada.
 | `422`  | Payload inválido (schema não atendido)                     |
 | `503`  | Modelo de ML não carregado (ausente/inválido)              |
 | `500`  | Erro interno inesperado                                    |
+
+---
+
+## GET /metrics
+
+Expoe as metricas da aplicacao no formato de exposicao do Prometheus.
+
+- **Content-Type:** `text/plain; version=0.0.4; charset=utf-8`
+- **Corpo:** texto no formato Prometheus, **nao** JSON
+- **Autenticacao:** nenhuma (stack local)
+
+### Metricas expostas
+
+| Metrica | Tipo | Labels | Descricao |
+|---|---|---|---|
+| `http_requests_total` | Counter | `method`, `path`, `status` | Total de requisicoes HTTP |
+| `http_request_latency_seconds` | Histogram | `method`, `path` | Latencia das requisicoes |
+| `model_loaded` | Gauge | — | 1 se o modelo esta carregado, 0 caso contrario |
+| `predictions_total` | Counter | `urgency` | Predicoes por classe de urgencia |
+
+`GET /metrics` e `GET /health` sao deliberadamente excluidos de
+`http_requests_total` e `http_request_latency_seconds`: o scrape do Prometheus e o
+healthcheck do Docker distorceriam os paineis de trafego. Ver
+`docs/ai/adr/0004-instrumentacao-e-contrato-de-metricas.md`.
 
 ---
 
