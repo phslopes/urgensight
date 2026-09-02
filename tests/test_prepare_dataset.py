@@ -18,7 +18,9 @@ from src.prepare_dataset import (
     VALID_TARGETS,
     build_benchmark_samples,
     clean_data,
+    main,
     map_labels,
+    parse_args,
     split_dataset,
 )
 
@@ -180,3 +182,69 @@ class TestBuildBenchmarkSamples:
         samples_a = build_benchmark_samples(df, n_per_class=3, seed=42)
         samples_b = build_benchmark_samples(df, n_per_class=3, seed=42)
         assert samples_a == samples_b
+
+
+class TestStageFlags:
+    def test_parse_args_defaults_to_full_run(self):
+        args = parse_args([])
+        assert args.download_only is False
+        assert args.skip_download is False
+
+    def test_parse_args_accepts_download_only(self):
+        assert parse_args(["--download-only"]).download_only is True
+
+    def test_parse_args_accepts_skip_download(self):
+        assert parse_args(["--skip-download"]).skip_download is True
+
+    def test_flags_are_mutually_exclusive(self):
+        with pytest.raises(SystemExit):
+            parse_args(["--download-only", "--skip-download"])
+
+    def test_download_only_stops_before_processing(self, tmp_path, monkeypatch):
+        """--download-only baixa e para: nao gera data/processed."""
+        calls = {}
+
+        def fake_download(dest_dir, force=False):
+            calls["download"] = True
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            return dest_dir / "train.csv", dest_dir / "test.csv"
+
+        def fail_load(*_args, **_kwargs):
+            raise AssertionError("load_raw_data nao deveria ser chamado")
+
+        monkeypatch.setattr("src.prepare_dataset.download_raw_data", fake_download)
+        monkeypatch.setattr("src.prepare_dataset.load_raw_data", fail_load)
+
+        main(["--download-only", "--data-dir", str(tmp_path)])
+
+        assert calls["download"] is True
+        assert not (tmp_path / "processed" / "train.csv").exists()
+
+    def test_skip_download_does_not_hit_the_network(self, tmp_path, monkeypatch):
+        """--skip-download consome data/raw ja existente."""
+
+        def fail_download(*_args, **_kwargs):
+            raise AssertionError("download_raw_data nao deveria ser chamado")
+
+        monkeypatch.setattr("src.prepare_dataset.download_raw_data", fail_download)
+
+        raw_dir = tmp_path / "raw"
+        raw_dir.mkdir(parents=True)
+        # make_raw_df() nao serve aqui: so tem 1 linha do label 4 (unica
+        # origem da classe "urgente"), e o split real do main() exige pelo
+        # menos 5 amostras por classe para estratificar com test_size=0.2.
+        raw_df = pd.DataFrame(
+            {
+                RAW_LABEL_COLUMN: [1, 1, 1, 3, 3, 2, 2, 2, 5, 5, 4, 4, 4, 4, 4],
+                RAW_TEXT_COLUMN: [f"condition {label} report {i}" for i, label in enumerate(
+                    [1, 1, 1, 3, 3, 2, 2, 2, 5, 5, 4, 4, 4, 4, 4]
+                )],
+            }
+        )
+        raw_df.to_csv(raw_dir / "medical_tc_train.csv", index=False)
+        raw_df.to_csv(raw_dir / "medical_tc_test.csv", index=False)
+
+        main(["--skip-download", "--data-dir", str(tmp_path)])
+
+        assert (tmp_path / "processed" / "train.csv").exists()
+        assert (tmp_path / "processed" / "test.csv").exists()
