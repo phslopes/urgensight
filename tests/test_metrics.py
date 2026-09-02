@@ -85,3 +85,18 @@ def test_predictions_total_increments_for_predicted_class(real_model):
 
     after = sample_value(PREDICTIONS_TOTAL, "predictions_total", labels)
     assert after == before + 1
+
+
+def test_metrics_redirect_path_is_also_excluded(real_model):
+    """TestClient segue redirects por padrao: GET /metrics vira duas
+    passagens pelo middleware (307 em /metrics, 200 em /metrics/, por causa
+    do Mount() do Starlette). Sem normalizar a barra final antes de checar
+    EXCLUDED_PATHS, a segunda passagem escapava da exclusao e poluia
+    http_requests_total -- ver ADR-0004 e o commit que corrigiu isso.
+    """
+    redirect_labels = {"method": "GET", "path": "/metrics/", "status": "200"}
+
+    with TestClient(app) as client:
+        client.get("/metrics")  # segue o redirect por padrao (follow_redirects=True)
+
+    assert sample_value(REQUESTS_TOTAL, "http_requests_total", redirect_labels) == 0.0
