@@ -1,4 +1,4 @@
-.PHONY: help dev run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory
+.PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down
 
 UV ?= $(shell which uv 2>/dev/null)
 ifeq ($(strip $(VIRTUAL_ENV)),)
@@ -14,7 +14,10 @@ endif
 help:
 	@echo "UrgenSight - Harness de Desenvolvimento"
 	@echo "----------------------------------------"
-	@echo "make dev          - Sobe o ambiente local com docker-compose"
+	@echo "make dev          - Sobe a stack de monitoramento (API + Prometheus + Grafana)"
+	@echo "make dev-airflow  - Sobe a stack do Airflow (docker-compose.airflow.yml)"
+	@echo "make monitoring-down - Derruba a stack de monitoramento"
+	@echo "make load         - Gera carga de requisicoes contra a API local"
 	@echo "make run          - Executa a API FastAPI localmente"
 	@echo "make test         - Executa todos os testes unitarios e de integracao"
 	@echo "make test-cov     - Executa testes com cobertura de codigo"
@@ -31,8 +34,26 @@ train:
 	$(PYTHON) -m src.prepare_dataset
 	$(PYTHON) -m src.train
 
-dev:
+dev: ensure-model
 	docker compose up -d --build
+	@echo "API:        http://localhost:8000/docs"
+	@echo "Prometheus: http://localhost:9090/targets"
+	@echo "Grafana:    http://localhost:3000"
+
+ensure-model:
+	@if [ ! -f models/model.pkl ]; then \
+		echo "models/model.pkl ausente -- executando make train..."; \
+		$(MAKE) train; \
+	fi
+
+dev-airflow:
+	docker compose -f docker-compose.airflow.yml up -d --build
+
+monitoring-down:
+	docker compose down
+
+load:
+	$(PYTHON) scripts/generate_load.py
 
 run:
 	$(PYTHON) -m uvicorn src.app:app --host 0.0.0.0 --port 8000 --reload
