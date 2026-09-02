@@ -227,6 +227,9 @@ class TestStageFlags:
             raise AssertionError("download_raw_data nao deveria ser chamado")
 
         monkeypatch.setattr("src.prepare_dataset.download_raw_data", fail_download)
+        monkeypatch.setattr(
+            "src.prepare_dataset._write_dataset_report", lambda *a, **k: None
+        )
 
         raw_dir = tmp_path / "raw"
         raw_dir.mkdir(parents=True)
