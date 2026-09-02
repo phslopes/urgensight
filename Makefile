@@ -83,9 +83,10 @@ graphify:
 
 setup-hooks:
 	@mkdir -p .git/hooks
-	@printf '#!/bin/bash\n# Pre-commit hook: Auto-stage team memories, protect secrets, verify semver\nif [ -d ".gemini/memory/team" ]; then\n  git add .gemini/memory/team/ 2>/dev/null || true\nfi\nif [ -d ".claude/memory/team" ]; then\n  git add .claude/memory/team/ 2>/dev/null || true\nfi\nbash .claude/scripts/protect-secrets.sh || exit 1\nbash .claude/scripts/verify-semver.sh || exit 1\nexit 0\n' > .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "Git pre-commit hooks configurados com sucesso."
+	@printf '#!/bin/bash\nset -euo pipefail\n# Pre-commit hook: Auto-stage team memories, sync memory, protect secrets, verify semver\nif [ -d ".gemini/memory/team" ]; then\n  git add .gemini/memory/team/ 2>/dev/null || true\nfi\nif [ -d ".claude/memory/team" ]; then\n  git add .claude/memory/team/ 2>/dev/null || true\nfi\nmake pull-memory >/dev/null 2>&1 || true\nbash .claude/scripts/protect-secrets.sh || exit 1\nbash .claude/scripts/verify-semver.sh || exit 1\nexit 0\n' > .git/hooks/pre-commit
+	@printf '#!/bin/bash\nset -euo pipefail\n# Post-commit hook: sync memory back to the shared stores\nmake push-memory >/dev/null 2>&1 || true\nexit 0\n' > .git/hooks/post-commit
+	@chmod +x .git/hooks/pre-commit .git/hooks/post-commit
+	@echo "Git hooks configurados com sucesso."
 
 pull-memory:
 	@if [ -f ".claude/sync-claude-memory.sh" ]; then bash .claude/sync-claude-memory.sh pull; fi

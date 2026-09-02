@@ -1,12 +1,41 @@
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f \".claude/sync-claude-memory.sh\" ]; then bash .claude/sync-claude-memory.sh pull >/dev/null 2>&1 || true; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); TARGET_FILE=$(echo \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); if [[ -n \"$TARGET_FILE\" ]]; then bash .claude/protect-secrets.sh \"$TARGET_FILE\"; fi"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "INPUT=$(cat); FILE=$(echo \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); if [[ \"$FILE\" == *.py ]]; then ruff format \"$FILE\" && ruff check --fix \"$FILE\"; fi"
+            "command": "if [ -f \".claude/sync-claude-memory.sh\" ]; then bash .claude/sync-claude-memory.sh push >/dev/null 2>&1 || true; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); TARGET_FILE=$(echo \"$INPUT\" | python3 -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\" 2>/dev/null); if [[ \"$TARGET_FILE\" == *.py ]]; then python3 -m ruff format \"$TARGET_FILE\" 2>/dev/null && python3 -m ruff check --fix \"$TARGET_FILE\" 2>/dev/null; fi"
           }
         ]
       }
