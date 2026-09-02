@@ -153,3 +153,29 @@ estrutural do `uv export`, não solução. A tentativa foi revertida via
   pipeline` hoje só acrescenta `dvc`, que o `smoke-train` nem usa — pequena
   ineficiência aceita, não corrigida nesta ADR. A decisão daquela ADR (dummy
   training sobre fixture versionado, sem rede) permanece válida.
+
+### Nota (revisão final da branch): lacuna do `dill`/`joblib`/`scipy`/`threadpoolctl` fechada
+
+O parágrafo de contexto acima já apontava que `scipy`, `scikit-learn`,
+`joblib` e `threadpoolctl` não constam das constraints oficiais do Airflow,
+ficando livres em cada ambiente — mas a estratégia final de
+`Dockerfile.airflow` (especificadores soltos + `--constraint`), descrita
+acima, não chegou a fixar nenhum desses quatro pacotes; só copiava o
+`>=`/`==` que já estava em `[project.dependencies]` na época (que também não
+os fixava). Uma comparação real entre a imagem do Airflow e o `uv.lock`
+(revisão final da branch) confirmou que `dill` (`0.3.8` na imagem do
+Airflow vs. `0.4.1` no `uv.lock`) e `joblib` (`1.6.0` vs. `1.5.3`) já
+haviam divergido de fato; `scipy` e `threadpoolctl` só batiam por
+coincidência, sem nenhum pin protegendo isso.
+
+Correção aplicada: `dill==0.3.8` e `joblib==1.5.3` passaram a ser pins
+exatos em `[project.dependencies]` (antes eram `>=0.3.8`/`>=1.4.0`), e
+`Dockerfile.airflow` passou a instalar os quatro pacotes com os mesmos
+valores exatos resolvidos em `uv.lock` (`dill==0.3.8`, `joblib==1.5.3`,
+`scipy==1.17.1`, `threadpoolctl==3.6.0`) na lista de especificadores soltos
+— `scipy` e `threadpoolctl` continuam sendo apenas dependências transitivas
+do `scikit-learn`, não precisam de entrada própria em
+`[project.dependencies]` para isso, só de aparecer fixados no
+`Dockerfile.airflow` e protegidos pelo teste de coerência (`AIRFLOW_PINNED`
+em `tests/test_environment_consistency.py`, que agora cobre os quatro
+pacotes contra `uv.lock`, não só `numpy`/`pandas`).

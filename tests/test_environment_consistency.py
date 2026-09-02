@@ -65,7 +65,21 @@ class TestUvProjectLayout:
 # Versoes ditadas pelas constraints oficiais do Airflow 2.9.3
 # (constraints-3.12.txt). O modelo e treinado sob elas dentro do container
 # do Airflow; a API precisa desserializar sob exatamente as mesmas.
-AIRFLOW_PINNED = {"numpy": "1.26.4", "pandas": "2.1.4"}
+#
+# numpy e pandas constam das constraints oficiais do Airflow. dill, joblib,
+# scipy e threadpoolctl nao constam -- ficam livres em cada ambiente a menos
+# que sejam fixados manualmente dos dois lados (pyproject.toml/uv.lock para a
+# API, especificadores soltos em Dockerfile.airflow para o Airflow). dill e
+# joblib ja divergiram de fato entre uv.lock e a imagem do Airflow (achado da
+# revisao final da branch); scipy e threadpoolctl batiam so por coincidencia.
+AIRFLOW_PINNED = {
+    "numpy": "1.26.4",
+    "pandas": "2.1.4",
+    "dill": "0.3.8",
+    "joblib": "1.5.3",
+    "scipy": "1.17.1",
+    "threadpoolctl": "3.6.0",
+}
 
 
 class TestDependencyGroups:
@@ -159,6 +173,22 @@ class TestSingleSourceOfDependencies:
         makefile = read_text("Makefile")
         assert "uv run python" in makefile
         assert "python3" not in makefile
+
+    def test_airflow_dockerfile_specs_match_pyproject_dependencies(self):
+        """A lista de especificadores soltos em Dockerfile.airflow e uma copia
+        manual de [project.dependencies] (nao ha como reaproveitar o
+        pyproject.toml dentro de um Dockerfile). Sem este teste, as duas
+        listas podem divergir silenciosamente -- exatamente o tipo de "fonte
+        dupla" que esta branch existe para eliminar. Cada especificador
+        precisa aparecer VERBATIM dentro do Dockerfile.airflow."""
+        deps = read_pyproject()["project"]["dependencies"]
+        dockerfile = read_text("Dockerfile.airflow")
+        for spec in deps:
+            assert spec in dockerfile, (
+                f"especificador '{spec}' de [project.dependencies] nao "
+                "aparece verbatim em Dockerfile.airflow -- as duas listas "
+                "de dependencias divergiram."
+            )
 
 
 class TestDvcPipeline:

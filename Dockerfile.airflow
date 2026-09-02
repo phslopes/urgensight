@@ -1,4 +1,4 @@
-# Imagem do Airflow usada pelo webserver/scheduler (docker-compose.yml).
+# Imagem do Airflow usada pelo webserver/scheduler (docker-compose.airflow.yml).
 # Nao confundir com o Dockerfile da API (Etapa 2, Integrante 2) -- por isso
 # o nome dedicado Dockerfile.airflow.
 FROM apache/airflow:2.9.3-python3.12
@@ -38,16 +38,24 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.1 /uv /bin/uv
 # (copiados de [project.dependencies] no pyproject.toml, nao exportados do
 # lock): sem um pin exato do nosso lado para colidir, o resolvedor aceita
 # os pins do Airflow (--constraint) para tudo que nao esta listado aqui,
-# e usa nossos pins exatos (numpy/pandas/scikit-learn) so onde exigimos.
-# Isso restaura o comportamento do antigo "pip install -r requirements.txt
-# --constraint ...": resolucao flexivel, constraints como teto, nao como
-# empate forcado.
+# e usa nossos pins exatos (numpy/pandas/scikit-learn/dill/joblib/scipy/
+# threadpoolctl) so onde exigimos. Isso restaura o comportamento do antigo
+# "pip install -r requirements.txt --constraint ...": resolucao flexivel,
+# constraints como teto, nao como empate forcado.
+#
+# dill, joblib, scipy e threadpoolctl nao constam das constraints oficiais
+# do Airflow (so numpy/pandas/scikit-learn constam) -- por isso ficam livres
+# se nao forem listados aqui, podendo divergir da versao usada pela API
+# (uv.lock) mesmo sem nenhuma mudanca de codigo. Fixados aqui com os mesmos
+# valores resolvidos em uv.lock, fechando a lacuna que a ADR-0007 apontou
+# mas nao fechou (ver nota nessa ADR).
 RUN /bin/uv pip install --no-cache \
         --python "$(command -v python)" \
         --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt" \
         "fastapi>=0.115.0" "uvicorn[standard]>=0.30.0" "pydantic>=2.8.0" \
-        "prometheus-client>=0.20" "scikit-learn==1.5.1" "joblib>=1.4.0" \
-        "numpy==1.26.4" "pandas==2.1.4" "requests>=2.31.0" "dill>=0.3.8"
+        "prometheus-client>=0.20" "scikit-learn==1.5.1" "joblib==1.5.3" \
+        "numpy==1.26.4" "pandas==2.1.4" "requests>=2.31.0" "dill==0.3.8" \
+        "scipy==1.17.1" "threadpoolctl==3.6.0"
 
 # dvc entra isolado, via "uv tool install": esse comando cria um ambiente
 # proprio do uv (nao compartilha site-packages com o Python do Airflow),
@@ -57,7 +65,7 @@ RUN /bin/uv pip install --no-cache \
 # construcao. O binario fica em /home/airflow/.local/bin, que ja vem antes
 # de /bin/usr/local/bin no PATH do usuario airflow (mesma ordem que exige
 # o /bin/uv qualificado acima) -- confirmado nesta tarefa.
-RUN /bin/uv tool install "dvc>=3.67" \
+RUN /bin/uv tool install "dvc==3.67.1" \
     && command -v dvc
 
 ENV PYTHONPATH="/opt/airflow/project:${PYTHONPATH}"

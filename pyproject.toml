@@ -27,12 +27,18 @@ dependencies = [
     # para o diagnostico completo. A correcao definitiva (desacoplar essas
     # constantes de prepare_dataset.py para nao arrastar requests para a
     # API) fica fora do escopo desta tarefa e deve ser avaliada na ADR-0007.
+    # dill e joblib tambem atravessam o pickle (dill via handlers usados pelo
+    # joblib.dump dentro do container do Airflow; joblib serializa as
+    # matrizes esparsas do TfidfVectorizer) e fixados aqui na mesma versao
+    # instalada em Dockerfile.airflow -- fechando a lacuna que a ADR-0007
+    # apontou (dill e joblib divergiam de fato entre uv.lock e a imagem do
+    # Airflow) mas nao fechou. Ver nota na ADR-0007.
     "scikit-learn==1.5.1",
-    "joblib>=1.4.0",
+    "joblib==1.5.3",
     "numpy==1.26.4",
     "pandas==2.1.4",
     "requests>=2.31.0",
-    "dill>=0.3.8",
+    "dill==0.3.8",
 ]
 
 [dependency-groups]
