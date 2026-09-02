@@ -3,7 +3,7 @@ name = "urgensight"
 version = "0.3.0"
 description = "Sistema de triagem automatica de exames de texto (laudos medicos)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
@@ -28,7 +28,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
@@ -42,3 +42,9 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 pythonpath = ["src", "."]
+
+[tool.uv]
+# Projeto sem [build-system]: nao ha pacote a construir/instalar, apenas
+# um ambiente a sincronizar. uv.lock ja registra source = { virtual = "." };
+# esta chave torna isso explicito e estavel entre versoes do uv.
+package = false
