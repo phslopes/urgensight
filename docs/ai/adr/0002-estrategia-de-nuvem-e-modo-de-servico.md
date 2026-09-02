@@ -70,11 +70,13 @@ conformidade em saúde citados (HIPAA, ISO 27001, LGPD). Azure é um provedor vi
 e com oferta equivalente de contêineres gerenciados e regiões compatíveis, mas não
 foi o escolhido como referência teórica deste projeto.
 
-**GCP como provedor de referência.** Rejeitada pelo mesmo critério: sem uma região
-nativa na América do Sul equivalente à `sa-east-1` da AWS no momento da decisão, e
-sem motivar uma vantagem específica sobre o desenho ECS Fargate + ALB já adotado
-como referência. Permanece como alternativa tecnicamente válida, não descartada por
-limitação técnica, apenas não escolhida como o desenho de referência documentado.
+**GCP como provedor de referência.** Rejeitada pelo mesmo critério de escopo: assim
+como a Azure, é uma alternativa tecnicamente viável, com oferta equivalente de
+contêineres gerenciados, mas não foi avaliada em profundidade dentro do escopo
+teórico deste projeto, que concentrou a fundamentação de arquitetura na AWS (região
+no Brasil, ecossistema de contêineres já mapeado no desenho ECS Fargate + ALB, e
+alinhamento com os padrões de conformidade citados). Não é descartada por nenhuma
+limitação técnica específica, apenas não foi a escolhida como referência documentada.
 
 ## Consequências
 
