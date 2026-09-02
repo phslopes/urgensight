@@ -1,7 +1,9 @@
 # Evidências de Monitoramento e CI/CD — Etapa 3
 
-> **Data da coleta:** 2026-09-01
-> **SHA do commit correspondente:** `d739c2a` (branch `feat/etapa3-observabilidade`)
+> **Data da coleta:** 2026-09-01 / 2026-09-02
+> **SHA do commit correspondente:** `d739c2a` (evidências 1 e 2, stack local) e
+> `190e6bc` (evidências 3 e 4, run de CI mais recente após o push desta task)
+> — branch `feat/etapa3-observabilidade`
 
 Este documento registra, para cada evidência exigida pela Etapa 3, o que ela
 demonstra, o comando exato que a reproduz e onde o artefato bruto está salvo em
@@ -114,8 +116,9 @@ gh run list --branch feat/etapa3-observabilidade --limit 5 \
 
 **Artefato:** [`docs/evidence/github_actions_runs.json`](evidence/github_actions_runs.json)
 
-O run mais recente no momento da coleta:
-[`33574292784`](https://github.com/Edwardmaster7/urgensight/actions/runs/33574292784)
+O run mais recente no momento da coleta (disparado pelo push do commit
+`62fae9e`/`190e6bc` desta própria task):
+[`33577507524`](https://github.com/Edwardmaster7/urgensight/actions/runs/33577507524)
 (evento `push`, `conclusion: success`).
 
 ---
@@ -130,7 +133,7 @@ obrigatórias (lint e testes) mais o treino simulado e o build da imagem.
 **Comando que reproduz:**
 
 ```bash
-gh run view 33574292784 --json jobs -q '.jobs[] | {name, conclusion}'
+gh run view 33577507524 --json jobs -q '.jobs[] | {name, conclusion}'
 ```
 
 **Artefato:** [`docs/evidence/github_actions_jobs.txt`](evidence/github_actions_jobs.txt)
