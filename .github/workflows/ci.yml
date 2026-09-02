@@ -62,6 +62,7 @@ jobs:
             --test-path tests/fixtures/sample_dataset.csv \
             --model-out models/model.pkl \
             --metrics-out /tmp/smoke_metrics.md \
+            --metrics-json-out /tmp/smoke_metrics.json \
             --max-features 500
       - name: Publicar artefato para o job de build
         # Jobs rodam em runners isolados, sem filesystem compartilhado.

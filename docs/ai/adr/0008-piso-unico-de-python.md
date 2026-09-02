@@ -45,7 +45,8 @@ retorno correspondente.
 
 ## Consequências
 
-- A imagem do Airflow precisa ser reconstruída (`make dev-airflow --build`).
+- A imagem do Airflow precisa ser reconstruída (`make dev-airflow` — o alvo
+  já embute `--build`).
 - `.python-version` passa a ser versionado; quem usa pyenv/uv pega 3.12
   automaticamente.
 - `numpy==1.26.4` continua compatível: suporta Python 3.12.

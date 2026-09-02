@@ -14,7 +14,7 @@ venv/
 *.egg-info/
 
 # Data (regenerable via `dvc repro` -- as pastas agora sao outs do DVC,
-# que gerencia seu proprio .gitignore interno; os antigos .gitkeep saíram
+# que gerencia seu proprio .gitignore interno; os antigos .gitkeep sairam
 # do Git em favor do dvc.yaml/dvc.lock)
 data/raw/*
 data/processed/*
