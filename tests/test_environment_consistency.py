@@ -60,3 +60,48 @@ class TestUvProjectLayout:
     def test_project_is_declared_virtual(self):
         """Sem [build-system], o uv precisa saber que nao ha pacote a instalar."""
         assert read_pyproject()["tool"]["uv"]["package"] is False
+
+
+# Versoes ditadas pelas constraints oficiais do Airflow 2.9.3
+# (constraints-3.12.txt). O modelo e treinado sob elas dentro do container
+# do Airflow; a API precisa desserializar sob exatamente as mesmas.
+AIRFLOW_PINNED = {"numpy": "1.26.4", "pandas": "2.1.4"}
+
+
+class TestDependencyGroups:
+    def test_declares_dependency_groups(self):
+        assert "dependency-groups" in read_pyproject()
+
+    def test_has_no_legacy_optional_dependencies(self):
+        """Grupos PEP 735 substituem os extras; manter ambos duplica a verdade."""
+        assert "optional-dependencies" not in read_pyproject()["project"]
+
+    def test_dev_group_includes_pipeline_group(self):
+        dev = read_pyproject()["dependency-groups"]["dev"]
+        assert {"include-group": "pipeline"} in dev
+
+    def test_numpy_is_pinned_to_airflow_version(self):
+        deps = read_pyproject()["project"]["dependencies"]
+        assert f"numpy=={AIRFLOW_PINNED['numpy']}" in deps
+
+    def test_pandas_is_pinned_to_airflow_version_in_pipeline_group(self):
+        pipeline = read_pyproject()["dependency-groups"]["pipeline"]
+        assert f"pandas=={AIRFLOW_PINNED['pandas']}" in pipeline
+
+    def test_api_runtime_excludes_pipeline_only_packages(self):
+        """src/app.py nao importa pandas nem requests: eles nao vao para a imagem."""
+        deps = " ".join(read_pyproject()["project"]["dependencies"])
+        assert "pandas" not in deps
+        assert "requests" not in deps
+
+    def test_dvc_is_not_a_runtime_dependency(self):
+        deps = " ".join(read_pyproject()["project"]["dependencies"])
+        assert "dvc" not in deps
+
+
+class TestLockfileMatchesPins:
+    def test_lock_resolves_pinned_versions(self):
+        """O lock e a fonte de verdade real; os pins precisam ter chegado nele."""
+        lock = read_text("uv.lock")
+        for package, version in AIRFLOW_PINNED.items():
+            assert f'name = "{package}"\nversion = "{version}"' in lock
