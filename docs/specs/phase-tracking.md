@@ -3,7 +3,7 @@
 > **Prazo:** 15/09
 > **Estratégia:** as etapas possuem uma ordem de dependência, mas as pessoas podem iniciar partes independentes em paralelo.
 > **Vídeo:** responsabilidade compartilhada por todo o grupo; não entra na divisão de carga técnica.
-> **Última atualização:** 2026-08-30
+> **Última atualização:** 2026-09-02
 
 | Etapa | Responsável | Foco                                                | Critérios diretamente atendidos   | Status        |
 | ----- | ------------ | --------------------------------------------------- | --------------------------------- | ------------- |
@@ -240,6 +240,28 @@ Fora da rubrica da Fase 3 (DVC pertence à Fase 2); adotado para eliminar a
 divergência de `numpy` entre treino e inferência e centralizar os
 hiperparâmetros. **A Etapa 4 (ONNX/benchmark, 20% da nota) permanece a maior
 pendência.**
+
+### Adendo (2026-09-02) — Limitação de idioma do modelo e documentação (PR #3)
+
+- [x] Bateria de testes manuais via `curl` contra `POST /predict` (modelo real)
+- [x] Achado: modelo treinado em corpus exclusivamente em inglês classifica
+      texto em português como `normal` independente da gravidade descrita
+      (TF-IDF sem vocabulário reconhecido) — documentado em
+      [ADR-0009](../ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md)
+- [x] Corrigido `example`/`description` de `PredictRequest.text` no Swagger
+      (usava texto em PT-BR enganoso)
+- [x] `docs/dataset.md` e `docs/api_contract.md` atualizados com a limitação
+- [x] Sumário navegável e exemplos de classificação por classe adicionados
+      ao README
+- [x] Setup completo revalidado do zero (clone isolado): `uv sync` → `dvc
+      repro` → testes → API local → bateria de endpoints → stack Docker →
+      DAG `train_pipeline` do Airflow disparada ponta a ponta
+
+Fora da rubrica de qualquer etapa específica (é uma correção de
+documentação/contrato de API que perpassa as Etapas 1, 2 e 3); registrado
+aqui por ter sido feito na mesma branch/PR do adendo anterior.
+[PR #3](https://github.com/Edwardmaster7/urgensight/pull/3), mergeado em
+`main`.
 
 ---
 
