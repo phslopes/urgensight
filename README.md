@@ -6,6 +6,44 @@ Sistema de triagem automática de exames de texto (laudos médicos) para
 classificação de urgência em 3 classes: `normal`, `atencao`, `urgente`.
 Projeto acadêmico (Tech Challenge — FIAP MLET).
 
+## Sumário
+
+- [Status](#status)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Instalação](#instalação)
+- [Rodando os testes](#rodando-os-testes)
+- [Preparando o dataset (Etapa 1.1)](#preparando-o-dataset-etapa-11)
+- [Treinando o modelo baseline (Etapa 1.2)](#treinando-o-modelo-baseline-etapa-12)
+- [DAG de retreino no Airflow (Etapa 1.3)](#dag-de-retreino-no-airflow-etapa-13)
+  - [Subir o ambiente](#subir-o-ambiente)
+  - [Acessar a interface](#acessar-a-interface)
+  - [Disparar a DAG](#disparar-a-dag)
+  - [Nota: consistência de versões entre ambientes](#nota-consistência-de-versões-entre-ambientes)
+  - [Encerrar o ambiente](#encerrar-o-ambiente)
+- [Pipeline de dados com DVC](#pipeline-de-dados-com-dvc)
+  - [Obter os dados e o modelo](#obter-os-dados-e-o-modelo)
+  - [Reproduzir o pipeline](#reproduzir-o-pipeline)
+  - [Experimentar sem editar `params.yaml`](#experimentar-sem-editar-paramsyaml)
+  - [Publicar artefatos](#publicar-artefatos)
+- [API de inferência (Etapa 2)](#api-de-inferência-etapa-2)
+  - [Rodando localmente (sem Docker)](#rodando-localmente-sem-docker)
+  - [Build da imagem Docker](#build-da-imagem-docker)
+  - [Subir o container](#subir-o-container)
+  - [Validar os endpoints](#validar-os-endpoints)
+  - [Explorando as classificações (um exemplo por classe)](#explorando-as-classificações-um-exemplo-por-classe)
+  - [Logs e parada](#logs-e-parada)
+  - [Medição de latência baseline](#medição-de-latência-baseline)
+  - [Nota: reproducibilidade do `model.pkl`](#nota-reproducibilidade-do-modelpkl)
+- [Decisão Arquitetural em Nuvem](#decisão-arquitetural-em-nuvem)
+  - [Análise de Processamento: Batch vs. Real-time](#análise-de-processamento-batch-vs-real-time)
+  - [Provedor de Referência: AWS](#provedor-de-referência-aws)
+  - [Desenho Lógico AWS](#desenho-lógico-aws)
+  - [Disclaimer](#disclaimer)
+- [Testes e Lint (Etapa 3)](#testes-e-lint-etapa-3)
+- [CI/CD (Etapa 3)](#cicd-etapa-3)
+- [Monitoramento (Etapa 3)](#monitoramento-etapa-3)
+- [Licença](#licença)
+
 ## Status
 
 - [x] Etapa 1 — Dataset, modelo baseline e DAG Airflow
@@ -334,6 +372,44 @@ Respostas esperadas sem modelo válido dentro da imagem:
 ```json
 {"detail": "Modelo de ML indisponivel."}
 ```
+
+### Explorando as classificações (um exemplo por classe)
+
+> **Idioma: inglês.** O modelo foi treinado em um corpus academico
+> exclusivamente em inglês (ver [`docs/dataset.md`](docs/dataset.md)), então
+> é esse o idioma que o `TfidfVectorizer` reconhece. Texto em português cai,
+> quase sempre, em `normal` — não é bug, ver
+> [ADR-0009](docs/ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md).
+
+Os três textos abaixo são amostras reais de `data/benchmark_samples.json`
+(validadas via `curl` contra o modelo real) e cobrem uma predição de cada
+classe:
+
+> **Atenção:** o `TfidfVectorizer` é sensível ao texto completo — truncar um
+> abstract pode mudar a classe prevista. Os exemplos abaixo estão na íntegra
+> (como em `data/benchmark_samples.json`) e foram revalidados via `curl`
+> contra o modelo real antes de entrarem aqui.
+
+```bash
+# -> {"prediction":"normal"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Extradural abscess following local anaesthetic and steroid injection for chronic low back pain. A case is described of extradural abscess following extradural injection of local anaesthetic and steroid for the management of chronic low back pain. The common signs and symptoms are reviewed, possible causes discussed and the association with diabetes stressed."}'
+
+# -> {"prediction":"atencao"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Outpatient management of schizophrenia. As effective antipsychotic pharmacotherapy has become available, patients with schizophrenia are increasingly managed in an outpatient setting by primary care physicians. Pharmacotherapy is generally effective in treating positive, or psychotic, symptoms and lessening the risks of relapse, but ineffective in improving negative, or deficit, symptoms. Aggressive attempts to totally control positive symptoms and to ameliorate negative symptoms tend to increase side effects and may be detrimental to the patient. Intensive psychotherapeutic and rehabilitative approaches are generally unproductive. Attempting to obtain a cure is unrealistic. A moderate approach is recommended, taking into consideration the limitations of existing treatments, achieving control of extreme symptoms and minimizing social and occupational limitations."}'
+
+# -> {"prediction":"urgente"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Misplaced caval filter and subsequent pericardial tamponade. Use of the Greenfield filter for partial caval interruption is generally accepted as the most reliable mechanical method of pulmonary embolus prophylaxis. However, there have been reports of a variety of (usually nonfatal) complications. We report here the near-fatal complication of acute pericardial tamponade after misplacement of a Greenfield filter. Because of the filter'"'"'s unusual location, retrieval required cardiopulmonary bypass, profound hyperthermia, and circulatory arrest."}'
+```
+
+Mais amostras por classe (15 de cada) estão disponíveis em
+[`data/benchmark_samples.json`](data/benchmark_samples.json) para explorar
+outros casos direto no Swagger UI (`http://localhost:8000/docs`).
 
 ### Logs e parada
 

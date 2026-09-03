@@ -14,3 +14,4 @@ alternativas consideradas e as consequências aceitas.
 | [0006](0006-dvc-como-fonte-de-verdade-do-pipeline.md) | DVC como fonte de verdade do pipeline de treino | Aceito |
 | [0007](0007-uv-com-lock-unico.md) | uv com lock único e grupos PEP 735 | Aceito |
 | [0008](0008-piso-unico-de-python.md) | Piso único de Python 3.12 | Aceito |
+| [0009](0009-idioma-ingles-como-contrato-efetivo-da-api.md) | Inglês como contrato efetivo de idioma da API | Aceito |
