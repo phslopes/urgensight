@@ -49,9 +49,17 @@ class PredictRequest(BaseModel):
     text: str = Field(
         ...,
         min_length=1,
-        description="Texto do laudo medico a ser classificado.",
+        description=(
+            "Texto do laudo medico a ser classificado. O modelo foi treinado "
+            "em um corpus academico em ingles (ver docs/dataset.md); texto em "
+            "portugues nao e classificado de forma confiavel e tende a cair "
+            "em 'normal' por falta de vocabulario reconhecido pelo TF-IDF."
+        ),
         json_schema_extra={
-            "example": "Paciente apresenta dor toracica intensa e dispneia."
+            "example": (
+                "Severe chest pain with dyspnea and diaphoresis, ECG shows "
+                "ST elevation, suspect acute myocardial infarction."
+            )
         },
     )
 

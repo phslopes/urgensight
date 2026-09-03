@@ -59,6 +59,19 @@ severidade clínica típica de cada categoria:
 > Qualquer uso além do escopo acadêmico deste projeto exigiria revisão por
 > profissionais de saúde e um dataset com rótulos de urgência reais.
 
+> **Limitação conhecida (idioma):** o corpus é integralmente em **inglês**,
+> logo o vocabulário aprendido pelo `TfidfVectorizer` também é em inglês. Uma
+> bateria de testes via `POST /predict` (2026-09-02) confirmou empiricamente
+> que texto em português — mesmo com sintomas graves e inequívocos, ex.:
+> `"Paciente com dor toracica intensa, dispneia e sudorese fria. Suspeita de
+> infarto agudo do miocardio."` — é classificado como `normal`, pois quase
+> todos os termos caem fora do vocabulário treinado (equivalente a um vetor
+> TF-IDF quase nulo). O mesmo texto em inglês (`"Severe chest pain with
+> dyspnea..."`) é classificado corretamente como `urgente`. Ver
+> [ADR-0009](ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md) para
+> a decisão de documentar isso como contrato explícito da API em vez de
+> tentar mitigar agora.
+
 ## Esquema final (após `src/prepare_dataset.py`)
 
 | Coluna | Descrição |

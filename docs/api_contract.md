@@ -89,6 +89,13 @@ carregado no startup (arquivo ausente ou inválido).
 
 Recebe o texto de um laudo médico e retorna a classe de urgência prevista.
 
+> **Idioma esperado: inglês.** O modelo foi treinado em um corpus
+> exclusivamente em inglês (ver `docs/dataset.md`), e é isso — não o
+> português — que o `TfidfVectorizer` reconhece. Texto em português cai,
+> quase sempre, em `normal`, independentemente da gravidade descrita, por
+> falta de vocabulário reconhecido. Ver
+> [ADR-0009](ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md).
+
 ### Request
 
 **Headers obrigatórios**
