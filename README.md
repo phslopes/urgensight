@@ -1,14 +1,55 @@
 # UrgenSight
 
+[![CI](https://github.com/Edwardmaster7/urgensight/actions/workflows/ci.yml/badge.svg)](https://github.com/Edwardmaster7/urgensight/actions/workflows/ci.yml)
+
 Sistema de triagem automática de exames de texto (laudos médicos) para
 classificação de urgência em 3 classes: `normal`, `atencao`, `urgente`.
 Projeto acadêmico (Tech Challenge — FIAP MLET).
 
+## Sumário
+
+- [Status](#status)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Instalação](#instalação)
+- [Rodando os testes](#rodando-os-testes)
+- [Preparando o dataset (Etapa 1.1)](#preparando-o-dataset-etapa-11)
+- [Treinando o modelo baseline (Etapa 1.2)](#treinando-o-modelo-baseline-etapa-12)
+- [DAG de retreino no Airflow (Etapa 1.3)](#dag-de-retreino-no-airflow-etapa-13)
+  - [Subir o ambiente](#subir-o-ambiente)
+  - [Acessar a interface](#acessar-a-interface)
+  - [Disparar a DAG](#disparar-a-dag)
+  - [Nota: consistência de versões entre ambientes](#nota-consistência-de-versões-entre-ambientes)
+  - [Encerrar o ambiente](#encerrar-o-ambiente)
+- [Pipeline de dados com DVC](#pipeline-de-dados-com-dvc)
+  - [Obter os dados e o modelo](#obter-os-dados-e-o-modelo)
+  - [Reproduzir o pipeline](#reproduzir-o-pipeline)
+  - [Experimentar sem editar `params.yaml`](#experimentar-sem-editar-paramsyaml)
+  - [Publicar artefatos](#publicar-artefatos)
+- [API de inferência (Etapa 2)](#api-de-inferência-etapa-2)
+  - [Rodando localmente (sem Docker)](#rodando-localmente-sem-docker)
+  - [Build da imagem Docker](#build-da-imagem-docker)
+  - [Subir o container](#subir-o-container)
+  - [Validar os endpoints](#validar-os-endpoints)
+  - [Explorando as classificações (um exemplo por classe)](#explorando-as-classificações-um-exemplo-por-classe)
+  - [Logs e parada](#logs-e-parada)
+  - [Medição de latência baseline](#medição-de-latência-baseline)
+  - [Nota: reproducibilidade do `model.pkl`](#nota-reproducibilidade-do-modelpkl)
+- [Decisão Arquitetural em Nuvem](#decisão-arquitetural-em-nuvem)
+  - [Análise de Processamento: Batch vs. Real-time](#análise-de-processamento-batch-vs-real-time)
+  - [Provedor de Referência: AWS](#provedor-de-referência-aws)
+  - [Desenho Lógico AWS](#desenho-lógico-aws)
+  - [Disclaimer](#disclaimer)
+- [Testes e Lint (Etapa 3)](#testes-e-lint-etapa-3)
+- [CI/CD (Etapa 3)](#cicd-etapa-3)
+- [Monitoramento (Etapa 3)](#monitoramento-etapa-3)
+- [Licença](#licença)
+
 ## Status
 
-- [x] Etapa 1.1 — Dataset e preparação
-- [x] Etapa 1.2 — Modelo baseline
-- [x] Etapa 1.3 — DAG Airflow
+- [x] Etapa 1 — Dataset, modelo baseline e DAG Airflow
+- [x] Etapa 2 — API FastAPI, Docker e decisão arquitetural
+- [x] Etapa 3 — Testes, CI/CD e observabilidade
+- [ ] Etapa 4 — Otimização de latência e benchmark
 
 ## Estrutura do projeto
 
@@ -33,34 +74,47 @@ docs/
   airflow_run_evidence.png # print de uma execução bem-sucedida da DAG (Etapa 1.3)
 dags/
   train_pipeline.py        # DAG de retreino: carregamento -> treino -> salvamento
-docker-compose.yml    # ambiente local do Airflow (Postgres + webserver + scheduler)
-Dockerfile.airflow    # imagem do Airflow usada pelo docker-compose (não é a imagem da API)
-requirements.txt      # dependências de runtime (também instaladas na imagem do Airflow)
-requirements-dev.txt  # requirements.txt + pytest (uso local)
+docker-compose.yml         # stack de monitoramento (API + Prometheus + Grafana)
+docker-compose.airflow.yml # ambiente local do Airflow (Postgres + webserver + scheduler)
+Dockerfile                 # imagem da API de inferencia
+Dockerfile.airflow         # imagem do Airflow (nao e a imagem da API)
+pyproject.toml         # dependencias, grupos e configuracao de ruff/pytest
+uv.lock                # versoes exatas (fonte de verdade)
+params.yaml   # hiperparametros do pipeline (fonte unica)
+dvc.yaml      # estagios: download -> prepare -> train
+dvc.lock      # hashes dos dados/modelo de cada execucao
+.dvcstore/    # remote local do DVC (nao versionado)
 ```
 
 ## Instalação
 
-Pré-requisitos: Python 3.10+.
+Pré-requisitos: Python 3.12+ e [uv](https://docs.astral.sh/uv/) (o arquivo
+`.python-version` fixa `3.12`; ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-source .venv/bin/activate
+# instalar o uv (uma vez)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-pip install -r requirements-dev.txt
+# criar o ambiente e instalar tudo (dev + pipeline)
+uv sync
 ```
 
-`requirements.txt` contém só as dependências de runtime (usadas também
-dentro da imagem do Airflow); `requirements-dev.txt` adiciona o `pytest`
-para rodar os testes localmente.
+`uv sync` lê `pyproject.toml` e `uv.lock`, cria o `.venv` e instala as
+versões exatas do lock. Não é necessário ativar o ambiente: `uv run <comando>`
+e os alvos do `Makefile` já executam dentro dele.
+
+O projeto declara três conjuntos de dependências:
+
+| Conjunto | Conteúdo | Instalação |
+|---|---|---|
+| `[project.dependencies]` | runtime da API (inclui `pandas`/`requests` — cadeia de imports `src.app -> src.train -> src.prepare_dataset`, ver ADR-0007) | `uv sync --no-default-groups` |
+| grupo `pipeline` | `dvc` (uso local: `uv run dvc ...`) | `uv sync --no-default-groups --group pipeline` |
+| grupo `dev` (padrão) | pytest, ruff, httpx + `pipeline` | `uv sync` |
 
 ## Rodando os testes
 
 ```bash
-pytest -q
+make test
 ```
 
 ## Preparando o dataset (Etapa 1.1)
@@ -71,7 +125,15 @@ limpa os dados, mapeia as classes clínicas originais para `normal` /
 benchmark:
 
 ```bash
-python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
+uv run dvc repro prepare
+```
+
+Caminho recomendado: reaproveita o cache do DVC (não repete o download se
+`data/raw` já estiver presente e inalterado). O comando direto continua
+funcionando como alternativa:
+
+```bash
+uv run python -m src.prepare_dataset --seed 42 --test-size 0.2 --benchmark-per-class 15
 ```
 
 Saídas geradas:
@@ -90,7 +152,16 @@ padrão, ou Linear SVC) sobre o dataset processado, avalia accuracy e F1 por
 classe e serializa o pipeline completo:
 
 ```bash
-python -m src.train --model logreg --seed 42
+uv run dvc repro train
+```
+
+Caminho recomendado: reaproveita o cache do DVC — se `data/processed` não
+mudou desde a última execução, só o estágio `train` roda. Os hiperparâmetros
+vêm de `params.yaml`. O comando direto continua funcionando como
+alternativa:
+
+```bash
+uv run python -m src.train --model logreg --seed 42
 ```
 
 Opções disponíveis: `--train-path`, `--test-path`, `--model-out`,
@@ -105,26 +176,30 @@ Para validar isoladamente que o modelo salvo carrega e prediz corretamente
 sobre as amostras de benchmark:
 
 ```bash
-pytest tests/test_model_loading.py -v
+uv run pytest tests/test_model_loading.py -v
 ```
 
 ## DAG de retreino no Airflow (Etapa 1.3)
 
 Pré-requisitos: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 instalado e em execução, e o dataset já processado (rode a Etapa 1.1 antes:
-`python -m src.prepare_dataset`).
+`uv run python -m src.prepare_dataset`).
 
 A DAG `train_pipeline` simula um fluxo de retreino agendado (`@weekly`) com
 3 tasks, na ordem obrigatória `carregamento/validação dos dados → treino →
-salvamento do modelo`, reutilizando diretamente as funções de
-`src/prepare_dataset.py` e `src/train.py` (nenhuma lógica é duplicada). A
-cada execução, o modelo treinado é promovido para `models/model.pkl` e uma
-cópia versionada por timestamp é salva em `models/history/`.
+salvamento do modelo`. Cada task chama os estágios do pipeline DVC
+(`dvc repro prepare`, `dvc repro train`, `dvc push`) via subprocess — a
+lógica de dados e treino mora em `dvc.yaml`, que por sua vez chama
+`src/prepare_dataset.py` e `src/train.py` (ver seção
+["Pipeline de dados com DVC"](#pipeline-de-dados-com-dvc)). A cada execução,
+o modelo treinado é promovido para `models/model.pkl` e uma cópia
+versionada por timestamp é salva em `models/history/`.
 
 ### Subir o ambiente
 
 ```bash
-docker compose up -d --build
+make dev-airflow
+# equivalente a: docker compose -f docker-compose.airflow.yml up -d --build
 ```
 
 Isso builda a imagem `Dockerfile.airflow` (Airflow + dependências do
@@ -142,7 +217,8 @@ Pela interface: localize `train_pipeline` na lista de DAGs, ative o toggle
 (unpause) e clique em **Trigger DAG** (▶). Ou via linha de comando:
 
 ```bash
-docker compose exec airflow-webserver airflow dags trigger train_pipeline
+docker compose -f docker-compose.airflow.yml exec airflow-webserver \
+  airflow dags trigger train_pipeline
 ```
 
 Acompanhe o progresso na visão **Graph** ou **Grid** da DAG. Os logs de
@@ -159,24 +235,76 @@ O `apache-airflow` traz `dill` como dependência transitiva, e isso faz o
 `pickle` do Python usar handlers do `dill` para alguns objetos durante o
 `joblib.dump` — ou seja, um `model.pkl` treinado **dentro do container**
 Airflow só recarrega em outro ambiente se esse ambiente também tiver
-`dill` instalado. Por isso `dill` está declarado em `requirements.txt`
-(runtime, não só dev) e o `scikit-learn` está fixado em `==1.5.1` (tanto
-localmente quanto na imagem do Airflow), evitando o
-`InconsistentVersionWarning` do scikit-learn ao desserializar um modelo
-treinado em outra versão. Qualquer ambiente que for carregar
-`models/model.pkl` (ex.: a API da Etapa 2) deve instalar as mesmas
-versões de `requirements.txt`.
+`dill` instalado. Por isso `dill` está declarado em `[project.dependencies]`
+(runtime, não só dev), o `scikit-learn` está fixado em `==1.5.1` (evitando o
+`InconsistentVersionWarning` ao desserializar um modelo treinado em outra
+versão) e o `numpy` está fixado em `==1.26.4` — mesma versão das constraints
+oficiais do Airflow, que é o ambiente menos flexível dos dois. Qualquer
+ambiente que for carregar `models/model.pkl` (ex.: a API da Etapa 2) deve
+instalar as mesmas versões declaradas em `pyproject.toml` e fixadas em
+`uv.lock` (ver [ADR-0007](docs/ai/adr/0007-uv-com-lock-unico.md)).
 
 ### Encerrar o ambiente
 
 ```bash
-docker compose down
+docker compose -f docker-compose.airflow.yml down
+
+# reset completo do metastore (remove o volume do Postgres)
+docker compose -f docker-compose.airflow.yml down -v
 ```
 
-Para remover também o volume do Postgres (reset completo do metastore):
+## Pipeline de dados com DVC
+
+O pipeline de dados e treino é declarado em `dvc.yaml`, com três estágios:
+
+```
+download  →  prepare  →  train
+data/raw     data/processed   models/model.pkl
+             benchmark_samples.json   docs/model_metrics.{md,json}
+             docs/dataset_distribution.md
+```
+
+Os hiperparâmetros ficam em `params.yaml` — fonte única, consumida tanto pela
+execução local quanto pela DAG do Airflow.
+
+### Obter os dados e o modelo
 
 ```bash
-docker compose down -v
+uv run dvc pull
+```
+
+Baixa `data/` e `models/model.pkl` do remote local (`.dvcstore/`) na versão
+correspondente ao commit atual — **reaproveitando o cache já existente na
+mesma máquina**, sem re-treinar nem reprocessar nada. `.dvcstore/` está no
+`.gitignore`: existe só na máquina onde alguém rodou `dvc push`, não é
+publicado junto com o repositório. Numa máquina nova (clone limpo, sem
+`.dvcstore/` local), `dvc pull` não tem de onde baixar; o primeiro
+`uv run dvc repro` ainda faz o download original do corpus em
+`raw.githubusercontent.com` (estágio `download`). O valor do remote local é
+reuso de cache/reprodutibilidade na mesma máquina entre execuções, não
+eliminar essa dependência externa para todo o time.
+
+### Reproduzir o pipeline
+
+```bash
+uv run dvc repro
+```
+
+O DVC reexecuta **apenas** os estágios afetados. Alterar
+`train.max_features` em `params.yaml` retreina o modelo sem reprocessar os
+17 MB de `data/raw`.
+
+### Experimentar sem editar `params.yaml`
+
+```bash
+uv run dvc exp run -S train.max_features=500
+uv run dvc metrics diff
+```
+
+### Publicar artefatos
+
+```bash
+uv run dvc push
 ```
 
 ## API de inferência (Etapa 2)
@@ -202,7 +330,8 @@ O `Dockerfile` da API executa os seguintes passos:
 
 1. Parte de `python:3.12-slim` (mesmo major/minor usado no ambiente de dev,
    garantindo compatibilidade com o pickle do modelo).
-2. Instala `requirements.txt` em uma camada própria (otimiza cache de build).
+2. Instala as dependências de runtime com `uv sync --frozen
+   --no-default-groups` em uma camada própria (otimiza cache de build).
 3. Copia `src/` e o artefato `models/model.pkl`.
 4. Executa como usuário não-root (`appuser`).
 5. Expõe a porta `8000` e sobe o Uvicorn em `src.app:app`.
@@ -244,12 +373,65 @@ Respostas esperadas sem modelo válido dentro da imagem:
 {"detail": "Modelo de ML indisponivel."}
 ```
 
+### Explorando as classificações (um exemplo por classe)
+
+> **Idioma: inglês.** O modelo foi treinado em um corpus academico
+> exclusivamente em inglês (ver [`docs/dataset.md`](docs/dataset.md)), então
+> é esse o idioma que o `TfidfVectorizer` reconhece. Texto em português cai,
+> quase sempre, em `normal` — não é bug, ver
+> [ADR-0009](docs/ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md).
+
+Os três textos abaixo são amostras reais de `data/benchmark_samples.json`
+(validadas via `curl` contra o modelo real) e cobrem uma predição de cada
+classe:
+
+> **Atenção:** o `TfidfVectorizer` é sensível ao texto completo — truncar um
+> abstract pode mudar a classe prevista. Os exemplos abaixo estão na íntegra
+> (como em `data/benchmark_samples.json`) e foram revalidados via `curl`
+> contra o modelo real antes de entrarem aqui.
+
+```bash
+# -> {"prediction":"normal"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Extradural abscess following local anaesthetic and steroid injection for chronic low back pain. A case is described of extradural abscess following extradural injection of local anaesthetic and steroid for the management of chronic low back pain. The common signs and symptoms are reviewed, possible causes discussed and the association with diabetes stressed."}'
+
+# -> {"prediction":"atencao"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Outpatient management of schizophrenia. As effective antipsychotic pharmacotherapy has become available, patients with schizophrenia are increasingly managed in an outpatient setting by primary care physicians. Pharmacotherapy is generally effective in treating positive, or psychotic, symptoms and lessening the risks of relapse, but ineffective in improving negative, or deficit, symptoms. Aggressive attempts to totally control positive symptoms and to ameliorate negative symptoms tend to increase side effects and may be detrimental to the patient. Intensive psychotherapeutic and rehabilitative approaches are generally unproductive. Attempting to obtain a cure is unrealistic. A moderate approach is recommended, taking into consideration the limitations of existing treatments, achieving control of extreme symptoms and minimizing social and occupational limitations."}'
+
+# -> {"prediction":"urgente"}
+curl -s -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Misplaced caval filter and subsequent pericardial tamponade. Use of the Greenfield filter for partial caval interruption is generally accepted as the most reliable mechanical method of pulmonary embolus prophylaxis. However, there have been reports of a variety of (usually nonfatal) complications. We report here the near-fatal complication of acute pericardial tamponade after misplacement of a Greenfield filter. Because of the filter'"'"'s unusual location, retrieval required cardiopulmonary bypass, profound hyperthermia, and circulatory arrest."}'
+```
+
+Mais amostras por classe (15 de cada) estão disponíveis em
+[`data/benchmark_samples.json`](data/benchmark_samples.json) para explorar
+outros casos direto no Swagger UI (`http://localhost:8000/docs`).
+
 ### Logs e parada
 
 ```bash
 docker logs -f urgensight-api
 docker stop urgensight-api && docker rm urgensight-api
 ```
+
+### Medição de latência baseline
+
+```bash
+# Instalar hey (macOS)
+brew install hey
+
+# Benchmark: 100 requisições, 4 conexões concorrentes
+hey -n 100 -c 4 -m POST \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Paciente apresenta tosse e febre. Necessita triagem urgente."}' \
+  http://localhost:8000/predict
+```
+
+Resultados do baseline (Apple M4 Pro, Docker local): ver [`docs/baseline_latency.md`](docs/baseline_latency.md).
 
 ### Nota: reproducibilidade do `model.pkl`
 
@@ -376,6 +558,76 @@ teórica de arquitetura e não contempla o provisionamento real,
 configuração de redes, custos ou conformidade com órgãos reguladores
 (ANVISA, CFM). Qualquer implantação em ambiente hospitalar real exigiria
 avaliação jurídica, testes de penetração e validação clínica do modelo.**
+
+## Testes e Lint (Etapa 3)
+
+Além de `pytest -q` (seção acima), o projeto padroniza a execução via
+Makefile:
+
+```bash
+make test       # roda toda a suite (python -m pytest)
+make test-cov   # pytest com cobertura de codigo (--cov=src --cov-report=term-missing)
+make lint       # ruff check src/ tests/ dags/
+make format     # ruff format + ruff check --fix
+```
+
+`ruff` cuida de formatação, `isort` e lint em um único comando. A suíte de
+testes cobre `src/prepare_dataset.py`, `src/train.py`, `src/app.py` e
+`src/metrics.py` (instrumentação Prometheus), além de validar o carregamento
+isolado do `models/model.pkl`.
+
+## CI/CD (Etapa 3)
+
+O pipeline definido em [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+roda em todo `push` para `main`/`feat/**` e em todo `pull_request` para
+`main`, com quatro jobs encadeados:
+
+1. **Lint (ruff)** — `ruff check src/ tests/ dags/`.
+2. **Testes (pytest)** — roda a suíte completa; os testes são mockados/usam
+   fixtures e não dependem de `models/model.pkl` (`test_model_loading.py` faz
+   skip automático quando o arquivo está ausente).
+3. **Dummy training** — treina `src/train.py` de ponta a ponta sobre um
+   fixture versionado (`tests/fixtures/sample_dataset.csv`), sem download
+   externo, apenas para provar que o pipeline de treino roda no CI. O
+   `model.pkl` gerado é publicado como artefato para o job seguinte.
+4. **Build da imagem Docker** — baixa o artefato do job anterior e builda a
+   imagem (`docker build`), sem publicar em nenhum registry.
+
+`lint` e `test` rodam em paralelo; `smoke-train` e `build` dependem
+(`needs`) dos anteriores, na ordem `lint ∥ test → smoke-train → build`.
+
+## Monitoramento (Etapa 3)
+
+Stack local de observabilidade via Docker Compose: API + Prometheus +
+Grafana. **O Airflow (Etapa 1.3) agora sobe separadamente**, com
+`make dev-airflow` (`docker-compose.airflow.yml`) — o `docker-compose.yml` da
+raiz é exclusivo da stack de monitoramento.
+
+```bash
+make dev              # sobe API + Prometheus + Grafana (builda o modelo se necessario)
+make load             # gera trafego real contra POST /predict
+make monitoring-down  # derruba a stack
+```
+
+URLs:
+
+- API (Swagger): [http://localhost:8000/docs](http://localhost:8000/docs)
+- Prometheus (targets): [http://localhost:9090/targets](http://localhost:9090/targets)
+- Grafana (dashboard, sem login — acesso anônimo em modo Viewer):
+  [http://localhost:3000](http://localhost:3000)
+
+O dashboard `monitoring/dashboard.json` é provisionado automaticamente ao
+subir o Grafana, com 6 painéis: total de requisições, modelo carregado,
+throughput (req/s), latência (p50/p95/p99), taxa de erro (não-2xx) e
+predições por classe de urgência. `scripts/generate_load.py`
+(`make load`, ou `python scripts/generate_load.py --duration <s> --rps <n>
+--error-rate <0-1>`) gera tráfego sintético contra `/predict` — incluindo uma
+fração configurável de payloads inválidos — para popular os painéis com
+dados reais.
+
+Detalhes da instrumentação (`src/metrics.py`), do contrato de métricas e das
+evidências coletadas: [`docs/api_contract.md`](docs/api_contract.md) e
+[`docs/monitoring_evidence.md`](docs/monitoring_evidence.md).
 
 ## Licença
 

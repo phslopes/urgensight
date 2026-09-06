@@ -1,5 +1,5 @@
 # Reduz o contexto de build enviado ao daemon Docker.
-# O Dockerfile copia apenas src/, requirements.txt e models/model.pkl,
+# O Dockerfile copia apenas src/, pyproject.toml, uv.lock e models/model.pkl,
 # mas sem .dockerignore o client envia tudo (incluindo .venv/, data/ e
 # logs), tornando o build lento e instavel.
 
@@ -22,6 +22,13 @@ data/processed/*
 
 # Models extras e historico (a imagem congela apenas models/model.pkl)
 models/history/
+
+# DVC (a imagem da API recebe o model.pkl pronto, nao reproduz o pipeline)
+.dvcstore/
+.dvc/
+dvc.yaml
+dvc.lock
+params.yaml
 
 # Airflow (docker-compose.yml)
 airflow_logs/

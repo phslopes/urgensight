@@ -16,13 +16,16 @@ Uso:
 Documentacao interativa (Swagger UI): http://localhost:8000/docs
 Contrato formal da API: docs/api_contract.md
 """
+
 import logging
 from contextlib import asynccontextmanager
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+
+from src.metrics import MODEL_LOADED, PREDICTIONS_TOTAL, setup_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model.pkl"
 
 
-class PredictionLabel(str, Enum):
+class PredictionLabel(StrEnum):
     """Classes de urgencia suportadas pelo modelo de triagem."""
 
     NORMAL = "normal"
@@ -46,8 +49,18 @@ class PredictRequest(BaseModel):
     text: str = Field(
         ...,
         min_length=1,
-        description="Texto do laudo medico a ser classificado.",
-        json_schema_extra={"example": "Paciente apresenta dor toracica intensa e dispneia."},
+        description=(
+            "Texto do laudo medico a ser classificado. O modelo foi treinado "
+            "em um corpus academico em ingles (ver docs/dataset.md); texto em "
+            "portugues nao e classificado de forma confiavel e tende a cair "
+            "em 'normal' por falta de vocabulario reconhecido pelo TF-IDF."
+        ),
+        json_schema_extra={
+            "example": (
+                "Severe chest pain with dyspnea and diaphoresis, ECG shows "
+                "ST elevation, suspect acute myocardial infarction."
+            )
+        },
     )
 
 
@@ -99,14 +112,17 @@ async def lifespan(app: FastAPI):
     global model_pipeline
     try:
         model_pipeline = _load_model(MODEL_PATH)
+        MODEL_LOADED.set(1)
         logger.info("Modelo carregado com sucesso: %s", MODEL_PATH)
     except Exception as exc:
         model_pipeline = None
+        MODEL_LOADED.set(0)
         logger.error(
             "Falha ao carregar o modelo em %s: %s", MODEL_PATH, exc, exc_info=True
         )
     yield
     model_pipeline = None
+    MODEL_LOADED.set(0)
 
 
 app = FastAPI(
@@ -117,9 +133,10 @@ app = FastAPI(
         "normal, atencao ou urgente. "
         "Inferencia via pipeline TF-IDF + classificador (models/model.pkl)."
     ),
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
+setup_metrics(app)
 
 
 def _require_model():
@@ -130,7 +147,7 @@ def _require_model():
             detail=(
                 "Modelo de ML indisponivel. "
                 "Verifique se models/model.pkl existe e e compativel "
-                "com as versoes de requirements.txt."
+                "com as versoes de pyproject.toml/uv.lock."
             ),
         )
     return model_pipeline
@@ -171,4 +188,6 @@ def predict(request: PredictRequest) -> PredictResponse:
     """
     pipeline = _require_model()
     prediction = pipeline.predict([request.text])[0]
-    return PredictResponse(prediction=PredictionLabel(prediction))
+    validated = PredictionLabel(prediction)
+    PREDICTIONS_TOTAL.labels(urgency=validated.value).inc()
+    return PredictResponse(prediction=validated)

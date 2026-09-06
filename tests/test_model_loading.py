@@ -5,6 +5,7 @@ urgencia para as amostras de benchmark (data/benchmark_samples.json).
 Pulado automaticamente se o modelo ainda nao foi treinado (`python -m
 src.train`), para nao quebrar um clone limpo do repositorio.
 """
+
 import json
 from pathlib import Path
 
@@ -62,6 +63,8 @@ def test_model_accuracy_on_benchmark_is_above_random_baseline():
     expected = [s[TARGET_COLUMN] for s in samples]
     predictions = pipeline.predict(texts)
 
-    accuracy = sum(p == e for p, e in zip(predictions, expected)) / len(expected)
+    accuracy = sum(p == e for p, e in zip(predictions, expected, strict=False)) / len(
+        expected
+    )
     # 3 classes -> baseline aleatorio ~0.33; exigimos uma folga clara acima disso.
     assert accuracy > 0.5

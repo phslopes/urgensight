@@ -9,17 +9,19 @@ Uso:
     python -m src.train --train-path data/processed/train.csv \
         --test-path data/processed/test.csv --model logreg
 """
+
 import argparse
+import json
 from pathlib import Path
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src.prepare_dataset import TARGET_COLUMN, TEXT_COLUMN, VALID_TARGETS
 
@@ -127,7 +129,7 @@ def format_metrics_report(metrics: dict, config: dict) -> str:
         "| | " + " | ".join(cm["labels"]) + " |",
         "|---|" + "---|" * len(cm["labels"]),
     ]
-    for label, row in zip(cm["labels"], cm["matrix"]):
+    for label, row in zip(cm["labels"], cm["matrix"], strict=False):
         lines.append(f"| **{label}** | " + " | ".join(str(v) for v in row) + " |")
 
     lines += [
@@ -142,6 +144,26 @@ def format_metrics_report(metrics: dict, config: dict) -> str:
     ]
 
     return "\n".join(lines) + "\n"
+
+
+def format_metrics_json(metrics: dict, config: dict) -> dict:
+    """Achata as metricas em escalares para `dvc metrics show/diff`.
+
+    O relatorio Markdown continua sendo a evidencia legivel da entrega; este
+    JSON existe para que o DVC consiga comparar runs entre commits.
+    """
+    payload = {
+        "model": config["model_name"],
+        "seed": config["seed"],
+        "accuracy": round(float(metrics["accuracy"]), 4),
+        "macro_f1": round(float(metrics["macro_f1"]), 4),
+        "weighted_f1": round(float(metrics["weighted_f1"]), 4),
+    }
+    for target in sorted(VALID_TARGETS):
+        payload[f"f1_{target}"] = round(
+            float(metrics["per_class"][target]["f1-score"]), 4
+        )
+    return payload
 
 
 def save_pipeline(pipeline: Pipeline, path: Path) -> None:
@@ -161,10 +183,19 @@ def load_pipeline(path: Path) -> Pipeline:
 
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--train-path", type=Path, default=Path("data/processed/train.csv"))
-    parser.add_argument("--test-path", type=Path, default=Path("data/processed/test.csv"))
+    parser.add_argument(
+        "--train-path", type=Path, default=Path("data/processed/train.csv")
+    )
+    parser.add_argument(
+        "--test-path", type=Path, default=Path("data/processed/test.csv")
+    )
     parser.add_argument("--model-out", type=Path, default=Path("models/model.pkl"))
-    parser.add_argument("--metrics-out", type=Path, default=Path("docs/model_metrics.md"))
+    parser.add_argument(
+        "--metrics-out", type=Path, default=Path("docs/model_metrics.md")
+    )
+    parser.add_argument(
+        "--metrics-json-out", type=Path, default=Path("docs/model_metrics.json")
+    )
     parser.add_argument("--model", choices=sorted(MODEL_BUILDERS), default="logreg")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-features", type=int, default=20000)
@@ -184,7 +215,9 @@ def main(argv=None) -> None:
     validate_columns(test_df)
 
     print(f"Treinando modelo '{args.model}' (seed={args.seed})...")
-    pipeline = build_pipeline(args.model, seed=args.seed, max_features=args.max_features)
+    pipeline = build_pipeline(
+        args.model, seed=args.seed, max_features=args.max_features
+    )
     pipeline.fit(train_df[TEXT_COLUMN], train_df[TARGET_COLUMN])
 
     print("Avaliando modelo no conjunto de teste...")
@@ -197,6 +230,15 @@ def main(argv=None) -> None:
     args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
     args.metrics_out.write_text(report, encoding="utf-8")
     print(f"Metricas salvas em {args.metrics_out}")
+
+    payload = format_metrics_json(
+        metrics, config={"model_name": args.model, "seed": args.seed}
+    )
+    args.metrics_json_out.parent.mkdir(parents=True, exist_ok=True)
+    args.metrics_json_out.write_text(
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"Metricas (JSON) salvas em {args.metrics_json_out}")
 
     save_pipeline(pipeline, args.model_out)
     print(f"Pipeline salvo em {args.model_out}")

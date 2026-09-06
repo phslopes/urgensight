@@ -1,0 +1,5 @@
+# Sandbox configuration for AI Agents
+SAFE_PATHS="src/,tests/,docs/,dags/,Makefile,pyproject.toml"
+RESTRICTED_COMMANDS="rm -rf /,mkfs,dd,chmod 777"
+NETWORK_ACCESS="local,pypi,github"
+LOG_EXECUTION=true

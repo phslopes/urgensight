@@ -1,4 +1,0 @@
--r requirements.txt
-pytest>=8.0
-# TestClient do FastAPI 0.110+ exige httpx2 (nao httpx legado)
-httpx2>=0.28

@@ -3,7 +3,9 @@
 Usam DataFrames/pipelines sinteticos pequenos (sem depender do dataset real)
 para manter os testes rapidos e deterministicos.
 """
-import joblib
+
+import json
+
 import pandas as pd
 import pytest
 from sklearn.pipeline import Pipeline
@@ -12,10 +14,12 @@ from src.prepare_dataset import TARGET_COLUMN, TEXT_COLUMN, VALID_TARGETS
 from src.train import (
     build_pipeline,
     evaluate_pipeline,
+    format_metrics_json,
     format_metrics_report,
     load_dataset,
-    save_pipeline,
     load_pipeline,
+    main,
+    save_pipeline,
     validate_columns,
 )
 
@@ -130,12 +134,75 @@ class TestFormatMetricsReport:
         pipeline = build_pipeline(model_name="logreg", seed=42).fit(X, y)
         metrics = evaluate_pipeline(pipeline, X, y)
 
-        report = format_metrics_report(metrics, config={"model_name": "logreg", "seed": 42})
+        report = format_metrics_report(
+            metrics, config={"model_name": "logreg", "seed": 42}
+        )
 
         assert "Accuracy" in report
         assert "Macro F1" in report
         for target in VALID_TARGETS:
             assert target in report
+
+
+class TestFormatMetricsJson:
+    def _metrics(self):
+        df = make_dataset(n_per_class=10)
+        X, y = df[TEXT_COLUMN], df[TARGET_COLUMN]
+        pipeline = build_pipeline(model_name="logreg", seed=42).fit(X, y)
+        return evaluate_pipeline(pipeline, X, y)
+
+    def test_returns_flat_scalar_mapping(self):
+        """dvc metrics show espera escalares, nao estruturas aninhadas."""
+        payload = format_metrics_json(
+            self._metrics(), config={"model_name": "logreg", "seed": 42}
+        )
+        for key, value in payload.items():
+            assert isinstance(value, (int, float, str)), f"{key} nao e escalar"
+
+    def test_contains_headline_metrics(self):
+        payload = format_metrics_json(
+            self._metrics(), config={"model_name": "logreg", "seed": 42}
+        )
+        assert "accuracy" in payload
+        assert "macro_f1" in payload
+        assert payload["model"] == "logreg"
+        assert payload["seed"] == 42
+
+    def test_contains_per_class_f1(self):
+        payload = format_metrics_json(
+            self._metrics(), config={"model_name": "logreg", "seed": 42}
+        )
+        for target in VALID_TARGETS:
+            assert f"f1_{target}" in payload
+
+    def test_is_json_serializable(self):
+        payload = format_metrics_json(
+            self._metrics(), config={"model_name": "logreg", "seed": 42}
+        )
+        assert json.loads(json.dumps(payload)) == payload
+
+
+class TestMainWritesBothMetricFiles:
+    def test_writes_markdown_and_json(self, tmp_path):
+        df = make_dataset(n_per_class=10)
+        data_path = tmp_path / "data.csv"
+        df.to_csv(data_path, index=False)
+
+        md_out = tmp_path / "metrics.md"
+        json_out = tmp_path / "metrics.json"
+
+        main([
+            "--train-path", str(data_path),
+            "--test-path", str(data_path),
+            "--model-out", str(tmp_path / "model.pkl"),
+            "--metrics-out", str(md_out),
+            "--metrics-json-out", str(json_out),
+            "--max-features", "50",
+        ])
+
+        assert md_out.exists()
+        payload = json.loads(json_out.read_text("utf-8"))
+        assert 0.0 <= payload["accuracy"] <= 1.0
 
 
 class TestSaveLoadPipeline:

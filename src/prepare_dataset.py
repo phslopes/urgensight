@@ -8,6 +8,7 @@ seed fixa e gera as amostras de benchmark em data/benchmark_samples.json.
 Uso:
     python -m src.prepare_dataset --seed 42 --test-size 0.2
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -52,11 +53,15 @@ CONDITION_TO_URGENCY = {
 VALID_TARGETS = {"normal", "atencao", "urgente"}
 
 
+def _raw_file_paths(raw_dir: Path) -> tuple[Path, Path]:
+    """Caminhos padronizados dos CSVs brutos de treino/teste em raw_dir."""
+    return raw_dir / "medical_tc_train.csv", raw_dir / "medical_tc_test.csv"
+
+
 def download_raw_data(dest_dir: Path, force: bool = False) -> tuple[Path, Path]:
     """Baixa os CSVs de treino/teste originais do corpus para dest_dir."""
     dest_dir.mkdir(parents=True, exist_ok=True)
-    train_path = dest_dir / "medical_tc_train.csv"
-    test_path = dest_dir / "medical_tc_test.csv"
+    train_path, test_path = _raw_file_paths(dest_dir)
 
     for url, path in ((RAW_TRAIN_URL, train_path), (RAW_TEST_URL, test_path)):
         if path.exists() and not force:
@@ -82,7 +87,9 @@ def compute_cleaning_stats(df: pd.DataFrame) -> dict:
     return {
         "total_rows": int(len(df)),
         "null_label_rows": int(df[RAW_LABEL_COLUMN].isnull().sum()),
-        "null_or_blank_text_rows": int((text.isnull() | (text.str.strip() == "")).sum()),
+        "null_or_blank_text_rows": int(
+            (text.isnull() | (text.str.strip() == "")).sum()
+        ),
         "duplicate_text_rows": int(df.duplicated(subset=[RAW_TEXT_COLUMN]).sum()),
     }
 
@@ -90,7 +97,9 @@ def compute_cleaning_stats(df: pd.DataFrame) -> dict:
 def _validate_raw_columns(df: pd.DataFrame) -> None:
     missing = REQUIRED_RAW_COLUMNS - set(df.columns)
     if missing:
-        raise ValueError(f"Colunas obrigatorias ausentes no dataset bruto: {sorted(missing)}")
+        raise ValueError(
+            f"Colunas obrigatorias ausentes no dataset bruto: {sorted(missing)}"
+        )
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -147,7 +156,9 @@ def split_dataset(
     return train_df.reset_index(drop=True), test_df.reset_index(drop=True)
 
 
-def build_benchmark_samples(df: pd.DataFrame, n_per_class: int = 15, seed: int = 42) -> list:
+def build_benchmark_samples(
+    df: pd.DataFrame, n_per_class: int = 15, seed: int = 42
+) -> list:
     """Amostra n_per_class registros por classe para benchmark/teste manual."""
     samples = []
     for target in sorted(VALID_TARGETS):
@@ -165,6 +176,13 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--test-size", type=float, default=0.2)
     parser.add_argument("--benchmark-per-class", type=int, default=15)
     parser.add_argument("--force-download", action="store_true")
+
+    # Flags de estagio: o pipeline DVC separa o download (dependente de rede)
+    # do processamento (deterministico), para que mudar um parametro de split
+    # nao rebaixe os 17 MB de data/raw. Ver dvc.yaml.
+    stage_group = parser.add_mutually_exclusive_group()
+    stage_group.add_argument("--download-only", action="store_true")
+    stage_group.add_argument("--skip-download", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -173,10 +191,24 @@ def main(argv=None) -> None:
 
     raw_dir = args.data_dir / "raw"
     processed_dir = args.data_dir / "processed"
-    processed_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Baixando dataset bruto em {raw_dir} ...")
-    train_path, test_path = download_raw_data(raw_dir, force=args.force_download)
+    if args.skip_download:
+        train_path, test_path = _raw_file_paths(raw_dir)
+        for path in (train_path, test_path):
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"Arquivo bruto ausente: {path}. "
+                    "Rode o estagio de download antes (--download-only)."
+                )
+    else:
+        print(f"Baixando dataset bruto em {raw_dir} ...")
+        train_path, test_path = download_raw_data(raw_dir, force=args.force_download)
+
+    if args.download_only:
+        print("Download concluido (--download-only): nada mais a fazer.")
+        return
+
+    processed_dir.mkdir(parents=True, exist_ok=True)
 
     raw_df = load_raw_data(train_path, test_path)
     stats = compute_cleaning_stats(raw_df)
@@ -196,7 +228,9 @@ def main(argv=None) -> None:
     print("Distribuicao de classes:")
     print(distribution)
 
-    train_df, test_df = split_dataset(mapped_df, test_size=args.test_size, seed=args.seed)
+    train_df, test_df = split_dataset(
+        mapped_df, test_size=args.test_size, seed=args.seed
+    )
     train_df.to_csv(processed_dir / "train.csv", index=False)
     test_df.to_csv(processed_dir / "test.csv", index=False)
     print(f"Treino: {len(train_df)} amostras | Teste: {len(test_df)} amostras")
@@ -208,7 +242,9 @@ def main(argv=None) -> None:
     benchmark_path.write_text(
         json.dumps(benchmark_samples, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"Amostras de benchmark salvas em {benchmark_path} ({len(benchmark_samples)} amostras)")
+    print(
+        f"Amostras de benchmark salvas em {benchmark_path} ({len(benchmark_samples)} amostras)"
+    )
 
     _write_dataset_report(stats, mapped_df, distribution, train_df, test_df)
 

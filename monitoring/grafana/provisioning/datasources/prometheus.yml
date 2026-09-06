@@ -1,0 +1,12 @@
+# UID fixo e obrigatorio: sem ele o Grafana gera um UID aleatorio e o
+# dashboard.json versionado deixa de resolver o datasource em outra maquina.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: urgensight-prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -1,0 +1,14 @@
+# Configuracao de scrape do Prometheus (Etapa 3 - UrgenSight).
+# O alvo usa o nome do servico do Compose ("api"), resolvido pela rede
+# interna -- nao use localhost, que apontaria para o proprio container.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: urgensight-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]
+        labels:
+          service: urgensight

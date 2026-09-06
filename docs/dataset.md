@@ -11,6 +11,13 @@ Os arquivos originais (`medical_tc_train.csv`, `medical_tc_test.csv`) são
 baixados automaticamente pelo script `src/prepare_dataset.py` diretamente do
 GitHub e salvos em `data/raw/` (não versionados — ver `.gitignore`).
 
+Caminho recomendado para obter os dados: `uv run dvc pull` (ver
+[ADR-0006](ai/adr/0006-dvc-como-fonte-de-verdade-do-pipeline.md)) — baixa
+`data/raw` já processado do remote local do DVC, sem depender do GitHub de
+terceiros. O download direto via `src/prepare_dataset.py` continua
+funcionando como fallback (ex.: primeira execução, antes de qualquer
+`dvc push`).
+
 ## Formato original
 
 | Coluna | Descrição |
@@ -51,6 +58,19 @@ severidade clínica típica de cada categoria:
 > público, real e verificável — em vez de rótulos sintéticos artificiais.
 > Qualquer uso além do escopo acadêmico deste projeto exigiria revisão por
 > profissionais de saúde e um dataset com rótulos de urgência reais.
+
+> **Limitação conhecida (idioma):** o corpus é integralmente em **inglês**,
+> logo o vocabulário aprendido pelo `TfidfVectorizer` também é em inglês. Uma
+> bateria de testes via `POST /predict` (2026-09-02) confirmou empiricamente
+> que texto em português — mesmo com sintomas graves e inequívocos, ex.:
+> `"Paciente com dor toracica intensa, dispneia e sudorese fria. Suspeita de
+> infarto agudo do miocardio."` — é classificado como `normal`, pois quase
+> todos os termos caem fora do vocabulário treinado (equivalente a um vetor
+> TF-IDF quase nulo). O mesmo texto em inglês (`"Severe chest pain with
+> dyspnea..."`) é classificado corretamente como `urgente`. Ver
+> [ADR-0009](ai/adr/0009-idioma-ingles-como-contrato-efetivo-da-api.md) para
+> a decisão de documentar isso como contrato explícito da API em vez de
+> tentar mitigar agora.
 
 ## Esquema final (após `src/prepare_dataset.py`)
 

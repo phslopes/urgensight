@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "matcher": "Edit|Write",
+        "command": "if [[ \"$TOOL_INPUT_FILE\" == *.py ]]; then ruff format \"$TOOL_INPUT_FILE\" && ruff check --fix \"$TOOL_INPUT_FILE\"; fi"
+      }
+    ]
+  }
+}

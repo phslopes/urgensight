@@ -1,0 +1,26 @@
+# Datasets brutos e processados
+data/raw/
+data/processed/
+
+# Modelos binarios e artefatos pesados
+models/*.pkl
+models/history/
+
+# Logs e execucoes do Airflow
+airflow_logs/
+*.log
+
+# Caches e artefatos de build
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.git/
+
+# Cache interno do graphify
+graphify-out/cache/
