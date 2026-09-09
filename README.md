@@ -42,6 +42,8 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 - [Testes e Lint (Etapa 3)](#testes-e-lint-etapa-3)
 - [CI/CD (Etapa 3)](#cicd-etapa-3)
 - [Monitoramento (Etapa 3)](#monitoramento-etapa-3)
+- [Otimização de latência (Etapa 4)](#otimização-de-latência-etapa-4)
+  - [Resultados](#resultados)
 - [Licença](#licença)
 
 ## Status
@@ -49,7 +51,7 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 - [x] Etapa 1 — Dataset, modelo baseline e DAG Airflow
 - [x] Etapa 2 — API FastAPI, Docker e decisão arquitetural
 - [x] Etapa 3 — Testes, CI/CD e observabilidade
-- [ ] Etapa 4 — Otimização de latência e benchmark
+- [x] Etapa 4 — Otimização de latência e benchmark
 
 ## Estrutura do projeto
 
@@ -67,11 +69,17 @@ tests/
   test_model_loading.py    # validação isolada do carregamento de models/model.pkl
 models/
   model.pkl                # pipeline serializado (vetorizador + modelo, não versionado)
+  model.onnx                # versao otimizada via ONNX Runtime (Etapa 4, não versionado)
+scripts/
+  generate_load.py          # gera trafego sintetico contra POST /predict (Etapa 3)
+  convert_to_onnx.py         # converte models/model.pkl -> models/model.onnx (Etapa 4)
+  benchmark_latency.py       # compara latencia: modelo original vs. ONNX (Etapa 4)
 docs/
   dataset.md               # fonte, formato e mapeamento de classes
   dataset_distribution.md  # relatório gerado automaticamente (Etapa 1.1)
   model_metrics.md         # métricas do modelo baseline (Etapa 1.2 / atualizado a cada run da DAG)
   airflow_run_evidence.png # print de uma execução bem-sucedida da DAG (Etapa 1.3)
+  latency_results.md       # benchmark original vs. ONNX + instruções de integração (Etapa 4)
 dags/
   train_pipeline.py        # DAG de retreino: carregamento -> treino -> salvamento
 docker-compose.yml         # stack de monitoramento (API + Prometheus + Grafana)
@@ -628,6 +636,55 @@ dados reais.
 Detalhes da instrumentação (`src/metrics.py`), do contrato de métricas e das
 evidências coletadas: [`docs/api_contract.md`](docs/api_contract.md) e
 [`docs/monitoring_evidence.md`](docs/monitoring_evidence.md).
+
+## Otimização de latência (Etapa 4)
+
+Técnica aplicada: **conversão do pipeline treinado para ONNX Runtime**
+(`skl2onnx`), conforme sinalizado como compatível desde a Etapa 1 (ver
+`docs/model_metrics.md` e [ADR-0010](docs/ai/adr/0010-onnx-runtime-como-tecnica-de-otimizacao.md)).
+
+```bash
+# Instala as dependencias opcionais (skl2onnx + onnxruntime)
+uv sync --group optimization
+
+# Converte models/model.pkl -> models/model.onnx e valida paridade
+# de predicoes contra as amostras de benchmark
+make convert-onnx        # ou: python -m scripts.convert_to_onnx
+
+# Mede latencia (modelo original vs. ONNX) e grava docs/latency_results.md
+make benchmark-latency    # ou: python -m scripts.benchmark_latency
+```
+
+`models/model.onnx` não é versionado no git (mesmo tratamento de
+`models/model.pkl` — regenerável, determinístico a partir do modelo
+treinado).
+
+### Resultados
+
+Benchmark de latência de inferência por requisição (uma predição por
+chamada, sem batching), 2000 execuções + 200 de aquecimento descartadas,
+mesma máquina, mesmas 45 amostras de `data/benchmark_samples.json`:
+
+| Modelo | Média (ms) | Mediana (ms) | p95 (ms) |
+|---|---|---|---|
+| Original (scikit-learn) | 0.682 | 0.644 | 1.017 |
+| Otimizado (ONNX Runtime) | 0.215 | 0.196 | 0.388 |
+| **Melhoria** | **+68.42%** | — | **+61.82%** |
+
+Paridade de predições entre o modelo original e o otimizado: **100%**
+nas 45 amostras de benchmark; **99.42%** (2233/2246) no conjunto de teste
+completo — as 13 divergências são casos de probabilidade quase empatada
+entre as duas classes mais prováveis (precisão `float32` do ONNX Runtime
+vs. `float64` do scikit-learn perto do limiar de decisão), não erro de
+conversão. Análise completa, ambiente da medição e instruções de
+integração do modelo ONNX na API: [`docs/latency_results.md`](docs/latency_results.md).
+
+> Este benchmark mede o backend de inferência isoladamente (sem HTTP/rede
+> — não é comparável linha a linha com o baseline de
+> [`docs/baseline_latency.md`](docs/baseline_latency.md), que mede a API
+> completa em Docker via `hey`). A integração do ONNX em `src/app.py` e a
+> remedição ponta a ponta ficam documentadas como próximo passo para
+> quem consolidar a Etapa 2/README final.
 
 ## Licença
 
