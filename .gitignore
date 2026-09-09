@@ -29,6 +29,10 @@ models/*.pkl
 models/history/
 !models/.gitkeep
 
+# Modelo otimizado (regenerable via scripts/convert_to_onnx.py, mesmo
+# tratamento do model.pkl -- ver docs/latency_results.md)
+models/*.onnx
+
 # Airflow (docker-compose.yml)
 airflow_logs/
 
