@@ -1,4 +1,4 @@
-.PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down convert-onnx
+.PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down convert-onnx benchmark-latency
 
 # uv e obrigatorio (ADR-0007): o fallback anterior para o interpretador do
 # sistema permitia que cada integrante rodasse num ambiente diferente.
@@ -23,6 +23,7 @@ help:
 	@echo "make clean        - Limpa caches e arquivos temporarios"
 	@echo "make train        - Prepara dataset e treina o modelo (gera models/model.pkl)"
 	@echo "make convert-onnx - Converte o modelo treinado para ONNX (gera models/model.onnx)"
+	@echo "make benchmark-latency - Compara latencia: modelo original vs. ONNX"
 	@echo "make graphify     - Atualiza o Knowledge Graph do projeto"
 	@echo "make setup-hooks  - Instala Git hooks de governanca e auto-staging"
 	@echo "make pull-memory  - Sincroniza memorias locais com memorias da equipe"
@@ -34,6 +35,9 @@ train:
 
 convert-onnx:
 	$(PYTHON) -m scripts.convert_to_onnx
+
+benchmark-latency: convert-onnx
+	$(PYTHON) -m scripts.benchmark_latency
 
 dev: ensure-model
 	docker compose up -d --build
