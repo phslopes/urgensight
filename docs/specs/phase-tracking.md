@@ -272,7 +272,11 @@ aqui por ter sido feito na mesma branch/PR do adendo anterior.
 **Status:** Concluída (2026-09-09). Modelo convertido para ONNX Runtime, paridade
 validada (100% nas amostras de benchmark, 99.42% no conjunto de teste completo —
 divergências documentadas), benchmark reprodutível com melhoria de
-~68% na média e ~62% no p95. Ver [ADR-0010](../ai/adr/0010-onnx-runtime-como-tecnica-de-otimizacao.md).
+~68% na média e ~62% no p95. Backend ONNX também integrado em `src/app.py`
+(opcional, via `MODEL_BACKEND`, autorizado pelo Integrante 2) e medido
+ponta a ponta em Docker (~5-12% de ganho — overhead de HTTP domina num
+payload pequeno). Ver [ADR-0010](../ai/adr/0010-onnx-runtime-como-tecnica-de-otimizacao.md)
+e [ADR-0011](../ai/adr/0011-integracao-opcional-do-onnx-na-api.md).
 
 ## 4.1. Planejamento de otimização
 
@@ -303,8 +307,8 @@ divergências documentadas), benchmark reprodutível com melhoria de
 - [x] Descartar warm-up ou registrá-lo separadamente
 - [x] Calcular percentual de melhoria de latência
 - [x] Registrar resultados em `docs/latency_results.md`
-- [ ] Apoiar o Integrante 2 na medição ponta a ponta da API otimizada em Docker *(depende da integração ainda não feita na Etapa 2 — instruções entregues em `docs/latency_results.md`)*
-- [ ] Comparar latência final da API com o baseline de `docs/baseline_latency.md` *(mesmo motivo acima)*
+- [x] Apoiar o Integrante 2 na medição ponta a ponta da API otimizada em Docker *(autorizado pelo Integrante 2; integração feita em `src/app.py` via `MODEL_BACKEND`, ver ADR-0011)*
+- [x] Comparar latência final da API com o baseline de `docs/baseline_latency.md` *(medido em Docker: ~5-12% de ganho ponta a ponta, bem menor que o ~68% do modelo isolado por conta do overhead de HTTP/rede — não comparável linha a linha ao baseline original por diferença de ambiente/metodologia; detalhes em `docs/latency_results.md`)*
 - [x] Atualizar README com tabela de resultados e ganho obtido
 
 ### Entregáveis da Etapa 4
@@ -380,7 +384,7 @@ divergências documentadas), benchmark reprodutível com melhoria de
 - **Etapa 2 → Etapa 4:** ✅ baseline_latency.md preenchido com dados reais (p50: 2.4ms, p95: 5.8ms, 1220 req/s).
 - **Etapa 3 → vídeo:** dashboard precisa estar populado antes da gravação.
 - **Etapa 4 → vídeo:** ✅ comparação de latência fechada (`docs/latency_results.md`) — pronta para a narrativa de resultado.
-- **Etapa 4 → Etapa 2:** integração do `models/model.onnx` em `src/app.py` e novo baseline de latência da API em Docker seguem pendentes — instruções entregues em `docs/latency_results.md`, execução é da Etapa 2 (ou de quem consolidar o README final).
+- **Etapa 4 → Etapa 2:** ✅ integração do `models/model.onnx` em `src/app.py` concluída (autorizada pelo Integrante 2, ADR-0011) e remedição ponta a ponta em Docker feita — não substitui uma remedição formal com `hey` na mesma máquina do baseline original, se o grupo quiser esse número exato.
 
 ---
 
@@ -391,5 +395,5 @@ divergências documentadas), benchmark reprodutível com melhoria de
 | ✅ FEITO   | Docker validado com modelo real, baseline de latência medido | Integrante 2 |
 | ✅ FEITO   | Criar `.github/workflows/ci.yml` com jobs de lint e pytest | Integrante 3 |
 | ✅ FEITO   | Converter modelo para ONNX e demonstrar melhoria de latência | Integrante 4 |
-| 🟡 OPCIONAL | Integrar `models/model.onnx` em `src/app.py` e remedir baseline da API em Docker (instruções em `docs/latency_results.md`) | Integrante 2 |
+| ✅ FEITO   | Integrar `models/model.onnx` em `src/app.py` e remedir latência da API em Docker (`docs/latency_results.md`, ADR-0011) | Integrante 4 (autorizado por Integrante 2) |
 | 🟠 ALTO    | README final, roteiro e gravação do vídeo STAR | Todos |
