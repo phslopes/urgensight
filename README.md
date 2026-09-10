@@ -44,6 +44,7 @@ Projeto acadêmico (Tech Challenge — FIAP MLET).
 - [Monitoramento (Etapa 3)](#monitoramento-etapa-3)
 - [Otimização de latência (Etapa 4)](#otimização-de-latência-etapa-4)
   - [Resultados](#resultados)
+  - [Backend ONNX na API (opcional)](#backend-onnx-na-api-opcional)
 - [Licença](#licença)
 
 ## Status
@@ -63,6 +64,7 @@ data/
 src/
   prepare_dataset.py      # download, limpeza, mapeamento e split do dataset
   train.py                 # treino, avaliação e serialização do modelo baseline
+  onnx_inference.py         # backend de inferencia via ONNX Runtime (Etapa 4, opcional)
 tests/
   test_prepare_dataset.py # testes automatizados (pytest)
   test_train.py            # testes automatizados do pipeline de treino (pytest)
@@ -676,15 +678,41 @@ nas 45 amostras de benchmark; **99.42%** (2233/2246) no conjunto de teste
 completo — as 13 divergências são casos de probabilidade quase empatada
 entre as duas classes mais prováveis (precisão `float32` do ONNX Runtime
 vs. `float64` do scikit-learn perto do limiar de decisão), não erro de
-conversão. Análise completa, ambiente da medição e instruções de
-integração do modelo ONNX na API: [`docs/latency_results.md`](docs/latency_results.md).
+conversão. Análise completa: [`docs/latency_results.md`](docs/latency_results.md).
 
 > Este benchmark mede o backend de inferência isoladamente (sem HTTP/rede
 > — não é comparável linha a linha com o baseline de
 > [`docs/baseline_latency.md`](docs/baseline_latency.md), que mede a API
-> completa em Docker via `hey`). A integração do ONNX em `src/app.py` e a
-> remedição ponta a ponta ficam documentadas como próximo passo para
-> quem consolidar a Etapa 2/README final.
+> completa em Docker via `hey`). Ver "Backend ONNX na API" abaixo para a
+> medição ponta a ponta.
+
+### Backend ONNX na API (opcional)
+
+Com aval do Integrante 2, o backend ONNX foi integrado em `src/app.py`
+atrás da variável de ambiente `MODEL_BACKEND` — o padrão (`sklearn` ou
+ausente) preserva o comportamento original da Etapa 2 sem nenhuma
+mudança. Ver [ADR-0011](docs/ai/adr/0011-integracao-opcional-do-onnx-na-api.md)
+para o design e um bug de locale do ONNX Runtime encontrado e corrigido
+no `Dockerfile`.
+
+```bash
+# Local (sem Docker)
+uv sync --group api-onnx
+MODEL_BACKEND=onnx uv run uvicorn src.app:app --reload
+
+# Docker / Docker Compose
+make convert-onnx                  # gera models/model.onnx antes do build
+docker build -t urgensight-api .
+docker run -p 8000:8000 -e MODEL_BACKEND=onnx urgensight-api
+# ou: MODEL_BACKEND=onnx docker compose up --build
+```
+
+Medição ponta a ponta em Docker (`POST /predict`, mesma máquina, mesmo
+payload): ganho de **~5-12%** — bem menor que o ~68% do modelo isolado,
+porque overhead de HTTP/rede/validação não muda com o backend do modelo
+e domina o tempo total num payload pequeno. Números completos e a
+ressalva sobre por que não são comparáveis ao baseline da Etapa 2 (SO e
+metodologia diferentes): [`docs/latency_results.md`](docs/latency_results.md#integração-na-api-realizada-opcional-via-model_backend).
 
 ## Licença
 
