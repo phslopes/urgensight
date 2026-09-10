@@ -18,6 +18,11 @@ services:
     image: urgensight-api:latest
     ports:
       - "8000:8000"
+    environment:
+      # "sklearn" (padrao) preserva o comportamento da Etapa 2. "onnx"
+      # ativa o backend otimizado da Etapa 4 -- requer models/model.onnx
+      # gerado antes do build (`make convert-onnx`). Ver docs/latency_results.md.
+      MODEL_BACKEND: ${MODEL_BACKEND:-sklearn}
     restart: unless-stopped
 
   prometheus:

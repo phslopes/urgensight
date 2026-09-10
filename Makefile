@@ -1,4 +1,4 @@
-.PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down
+.PHONY: help dev ensure-model dev-airflow run train test test-cov lint format clean graphify setup-hooks pull-memory push-memory load monitoring-down convert-onnx benchmark-latency
 
 # uv e obrigatorio (ADR-0007): o fallback anterior para o interpretador do
 # sistema permitia que cada integrante rodasse num ambiente diferente.
@@ -22,6 +22,8 @@ help:
 	@echo "make format       - Formata codigo com Ruff"
 	@echo "make clean        - Limpa caches e arquivos temporarios"
 	@echo "make train        - Prepara dataset e treina o modelo (gera models/model.pkl)"
+	@echo "make convert-onnx - Converte o modelo treinado para ONNX (gera models/model.onnx)"
+	@echo "make benchmark-latency - Compara latencia: modelo original vs. ONNX"
 	@echo "make graphify     - Atualiza o Knowledge Graph do projeto"
 	@echo "make setup-hooks  - Instala Git hooks de governanca e auto-staging"
 	@echo "make pull-memory  - Sincroniza memorias locais com memorias da equipe"
@@ -30,6 +32,12 @@ help:
 train:
 	$(PYTHON) -m src.prepare_dataset
 	$(PYTHON) -m src.train
+
+convert-onnx:
+	$(PYTHON) -m scripts.convert_to_onnx
+
+benchmark-latency: convert-onnx
+	$(PYTHON) -m scripts.benchmark_latency
 
 dev: ensure-model
 	docker compose up -d --build
@@ -62,11 +70,11 @@ test-cov:
 	$(PYTHON) -m pytest --cov=src --cov-report=term-missing
 
 lint:
-	$(PYTHON) -m ruff check src/ tests/ dags/
+	$(PYTHON) -m ruff check src/ tests/ dags/ scripts/
 
 format:
-	$(PYTHON) -m ruff format src/ tests/ dags/
-	$(PYTHON) -m ruff check --fix src/ tests/ dags/
+	$(PYTHON) -m ruff format src/ tests/ dags/ scripts/
+	$(PYTHON) -m ruff check --fix src/ tests/ dags/ scripts/
 
 clean:
 	rm -rf .pytest_cache .ruff_cache __pycache__ src/__pycache__ tests/__pycache__ dags/__pycache__ .coverage

@@ -22,7 +22,7 @@ jobs:
       - name: Instalar dependencias
         run: uv sync --frozen
       - name: Rodar ruff
-        run: uv run ruff check src/ tests/ dags/
+        run: uv run ruff check src/ tests/ dags/ scripts/
 
   test:
     name: Testes (pytest)

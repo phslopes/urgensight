@@ -10,6 +10,13 @@ check passa a reportar ``503 Service Unavailable`` (modelo indisponivel)
 e ``POST /predict`` responde ``503`` ate que um modelo valido esteja
 presente e a aplicacao seja reiniciada.
 
+Etapa 4 (opcional): a variavel de ambiente ``MODEL_BACKEND=onnx`` troca o
+backend de inferencia para ``models/model.onnx`` (ONNX Runtime) em vez do
+pipeline scikit-learn -- ver ``docs/latency_results.md`` e
+``docs/ai/adr/0011-integracao-opcional-do-onnx-na-api.md``. O padrao
+(``MODEL_BACKEND`` ausente ou ``sklearn``) mantem o comportamento
+original da Etapa 2 inalterado.
+
 Uso:
     uvicorn src.app:app --host 0.0.0.0 --port 8000
 
@@ -18,6 +25,7 @@ Contrato formal da API: docs/api_contract.md
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from pathlib import Path
@@ -29,10 +37,17 @@ from src.metrics import MODEL_LOADED, PREDICTIONS_TOTAL, setup_metrics
 
 logger = logging.getLogger(__name__)
 
-# Caminho absoluto ancorado na raiz do projeto (dois niveis acima deste
+# Caminhos absolutos ancorados na raiz do projeto (dois niveis acima deste
 # arquivo: src/app.py -> src/ -> raiz). Independe do diretorio de trabalho
 # de onde o uvicorn foi iniciado.
-MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "model.pkl"
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+MODEL_PATH = _PROJECT_ROOT / "models" / "model.pkl"
+MODEL_ONNX_PATH = _PROJECT_ROOT / "models" / "model.onnx"
+
+# "sklearn" (padrao) preserva o comportamento original da Etapa 2. "onnx"
+# ativa o backend otimizado da Etapa 4 -- ver docstring do modulo.
+MODEL_BACKEND = os.getenv("MODEL_BACKEND", "sklearn").strip().lower()
+ACTIVE_MODEL_PATH = MODEL_ONNX_PATH if MODEL_BACKEND == "onnx" else MODEL_PATH
 
 
 class PredictionLabel(StrEnum):
@@ -95,7 +110,18 @@ model_pipeline = None
 
 
 def _load_model(path: Path):
-    """Carrega o pipeline serializado via joblib. Lanca excecao se invalido."""
+    """Carrega o modelo a partir de `path`, no backend ativo (MODEL_BACKEND).
+
+    "onnx": ``OnnxPipeline`` sobre uma InferenceSession do ONNX Runtime.
+    "sklearn" (padrao): pipeline serializado via joblib, como na Etapa 2.
+    Lanca excecao se o arquivo estiver ausente ou invalido -- capturada no
+    lifespan, que degrada para ``model_pipeline = None`` (503).
+    """
+    if MODEL_BACKEND == "onnx":
+        from src.onnx_inference import OnnxPipeline
+
+        return OnnxPipeline(path)
+
     from src.train import load_pipeline
 
     return load_pipeline(path)
@@ -111,14 +137,22 @@ async def lifespan(app: FastAPI):
     """
     global model_pipeline
     try:
-        model_pipeline = _load_model(MODEL_PATH)
+        model_pipeline = _load_model(ACTIVE_MODEL_PATH)
         MODEL_LOADED.set(1)
-        logger.info("Modelo carregado com sucesso: %s", MODEL_PATH)
+        logger.info(
+            "Modelo carregado com sucesso (backend=%s): %s",
+            MODEL_BACKEND,
+            ACTIVE_MODEL_PATH,
+        )
     except Exception as exc:
         model_pipeline = None
         MODEL_LOADED.set(0)
         logger.error(
-            "Falha ao carregar o modelo em %s: %s", MODEL_PATH, exc, exc_info=True
+            "Falha ao carregar o modelo (backend=%s) em %s: %s",
+            MODEL_BACKEND,
+            ACTIVE_MODEL_PATH,
+            exc,
+            exc_info=True,
         )
     yield
     model_pipeline = None
@@ -146,8 +180,9 @@ def _require_model():
             status_code=503,
             detail=(
                 "Modelo de ML indisponivel. "
-                "Verifique se models/model.pkl existe e e compativel "
-                "com as versoes de pyproject.toml/uv.lock."
+                f"Verifique se {ACTIVE_MODEL_PATH.name} existe (backend="
+                f"{MODEL_BACKEND}) e e compativel com as versoes de "
+                "pyproject.toml/uv.lock."
             ),
         )
     return model_pipeline
