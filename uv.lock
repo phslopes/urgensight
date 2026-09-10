@@ -2494,6 +2494,9 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+api-onnx = [
+    { name = "onnxruntime" },
+]
 dev = [
     { name = "dvc" },
     { name = "httpx" },
@@ -2526,6 +2529,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+api-onnx = [{ name = "onnxruntime", specifier = ">=1.29.0" }]
 dev = [
     { name = "dvc", specifier = ">=3.67" },
     { name = "httpx", specifier = ">=0.27.0" },
