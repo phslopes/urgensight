@@ -47,8 +47,9 @@ tempo de `pipeline.predict()`/`session.run()` — sem serializacao HTTP,
 sem rede, sem overhead do FastAPI/Uvicorn. Ele isola o ganho da tecnica de
 otimizacao no proprio modelo, que e o que a Etapa 4 pede (mesma maquina,
 mesmas entradas, mesmo numero de execucoes para original vs. otimizado).
-A comparacao "ponta a ponta" com o baseline da API exige integrar o
-modelo ONNX na API e rodar `hey` de novo — ver instrucoes abaixo.
+A comparacao "ponta a ponta" (API real, com HTTP) esta na secao
+"Integracao na API" abaixo — o ganho la e bem menor, porque overhead de
+rede/HTTP passa a dominar o tempo total.
 
 ## Validacao de paridade de predicoes
 
@@ -70,35 +71,59 @@ evidencia de erro de conversao (vocabulario do TF-IDF, tokenizacao ou
 pesos do classificador) — apenas ruido de precisao concentrado em casos
 que ja eram ambiguos para o modelo original.
 
-## Instrucoes de integracao para o Integrante 2 (API)
+## Integracao na API (realizada, opcional via `MODEL_BACKEND`)
 
-Este pacote de otimizacao **nao altera `src/app.py`** — a integracao na
-API e responsabilidade da Etapa 2. Passos sugeridos para plugar o modelo
-ONNX no lugar do `joblib`/scikit-learn:
+Com autorizacao do Integrante 2, o backend ONNX foi integrado em
+`src/app.py` atras da variavel de ambiente `MODEL_BACKEND` (`sklearn`,
+padrao — comportamento da Etapa 2 inalterado — ou `onnx`). Detalhes de
+design, o grupo de dependencia `api-onnx` (so `onnxruntime`, sem
+`skl2onnx`/`onnx`) e um bug de locale encontrado e corrigido no
+`Dockerfile`: [ADR-0011](ai/adr/0011-integracao-opcional-do-onnx-na-api.md).
 
-1. Adicionar o grupo opcional `optimization` ao ambiente da API:
-   `uv sync --group optimization` (traz `onnxruntime` + `skl2onnx`; ver
-   `pyproject.toml`).
-2. Gerar o artefato antes do build da imagem (mesmo tratamento de
-   `models/model.pkl` — nao e commitado no git, ver `.gitignore`):
-   `python -m scripts.convert_to_onnx`.
-3. No lifespan da API, carregar uma `onnxruntime.InferenceSession` sobre
-   `models/model.onnx` em vez de (ou alem de, atras de uma flag) chamar
-   `load_pipeline`.
-4. Na inferencia, montar o input como
-   `numpy.array([[texto]], dtype=object)` e chamar
-   `session.run(None, {input_name: onnx_input})`; o output `"label"` ja
-   vem como string (`normal`/`atencao`/`urgente`), pronto para
-   `PredictionLabel(...)`.
-5. Incluir `models/model.onnx` no `Dockerfile` (mesmo passo que hoje copia
-   `models/model.pkl`) e reexecutar o baseline de latencia com `hey`
-   (mesmo procedimento de `docs/baseline_latency.md`) para obter o numero
-   comparavel ponta a ponta — o ganho medido aqui (~60-70% no modelo puro)
-   tende a ser proporcionalmente menor no tempo total da requisicao, pois
-   parte da latencia da API (parsing HTTP, validacao Pydantic, rede) nao
-   muda com a troca de backend do modelo.
+Como usar:
 
-Caso a equipe opte por nao integrar ONNX na API antes da entrega, esta
-secao serve como evidencia documentada da tecnica aplicada e do ganho
-demonstrado no nivel do modelo, que e o entregavel exigido pela rubrica
-da Etapa 4 ("melhoria de latencia demonstrada").
+```bash
+# Local (sem Docker)
+uv sync --group api-onnx
+MODEL_BACKEND=onnx uv run uvicorn src.app:app --reload
+
+# Docker / Docker Compose
+make convert-onnx                          # gera models/model.onnx
+docker build -t urgensight-api .           # inclui onnxruntime + modelo, se presente
+docker run -p 8000:8000 -e MODEL_BACKEND=onnx urgensight-api
+# ou: MODEL_BACKEND=onnx docker compose up --build
+```
+
+### Resultados ponta a ponta (Docker, `POST /predict`)
+
+Sem `hey`/`ab` disponiveis neste ambiente, a medicao usou um cliente
+Python equivalente (`requests`, sequencial, mesmo payload, 30 requisicoes
+de aquecimento descartadas, 300 medidas), mesma maquina para as duas
+rodadas:
+
+| Backend | N | Media (ms) | Mediana (ms) | p95 (ms) |
+|---|---|---|---|---|
+| sklearn (padrao) — rodada 1 | 300 | 16.759 | 16.140 | 27.836 |
+| sklearn (padrao) — rodada 2 | 300 | 16.044 | 15.552 | 30.028 |
+| onnx — rodada 1 | 300 | 14.683 | 15.388 | 28.112 |
+| onnx — rodada 2 | 300 | 15.616 | 16.214 | 27.103 |
+
+**Ganho ponta a ponta: ~5-12% (bem menor que o ~68% do modelo puro).**
+Isso e esperado, nao uma regressao da tecnica: a requisicao HTTP soma
+parsing, validacao Pydantic e rede ao tempo de inferencia, e esse
+overhead nao muda com o backend do modelo — em um payload pequeno como o
+usado aqui, ele domina o tempo total. Os valores absolutos desta tabela
+(~15-16 ms) tambem nao sao comparaveis linha a linha com
+`docs/baseline_latency.md` (~2-6 ms): ambientes diferentes (Docker
+Desktop no Windows/WSL2 aqui vs. macOS nativo la) e metodologia diferente
+(cliente Python sequencial aqui vs. `hey` com 10 conexoes concorrentes
+la). A comparacao valida desta secao e sklearn vs. onnx **dentro do
+mesmo ambiente**, nao contra o baseline historico da Etapa 2 — uma
+remedicao formal com `hey` na mesma maquina do baseline original fica
+como refinamento futuro, se o grupo quiser esse numero.
+
+O ganho relevante para a rubrica ("melhoria de latencia demonstrada")
+continua sendo o do modelo isolado, na secao anterior — a integracao na
+API e um diferencial extra para a demonstracao no video, nao um
+requisito do enunciado (ver
+[ADR-0010](ai/adr/0010-onnx-runtime-como-tecnica-de-otimizacao.md)).
